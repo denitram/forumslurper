@@ -16,17 +16,18 @@ import geb.Browser
 import groovy.sql.Sql
 import org.postgresql.Driver
  
+FORUM = "Viva"
 FORUM_BASE_URL = "http://forum.viva.nl/forum"
-SUBFORUM_SUBJECT = "Gezondheid"
-SUBFORUM_LANDING_PAGE_URL = "${FORUM_BASE_URL}/${SUBFORUM_SUBJECT}/list_topics/6"
-SUBFORUM_PAGE_URL_PREFIX = SUBFORUM_LANDING_PAGE_URL
-FIRST_PAGE_NUMBER = 514
+SUBFORUM = "Gezondheid"
+SUBFORUM_BASE_URL = "${FORUM_BASE_URL}/${SUBFORUM}/list_topics/6"
+PAGE_BASE_URL = SUBFORUM_BASE_URL
+FIRST_PAGE_NUMBER = 525
 
-println "Stage 1: (re-)create db table"
+println "Dropping and creating db table message"
 ///////////////////////////////////////////////////////////////////////////////
 
 db = Sql.newInstance(
-	'jdbc:postgresql://localhost/viva-slurper',
+	'jdbc:postgresql://localhost/forumslurper',
 	'postgres',
 	'password',
 	'org.postgresql.Driver'
@@ -37,6 +38,8 @@ db.execute '''
 	CREATE TABLE message
 	(
 		id SERIAL,
+		forum character varying(40),
+		subforum character varying(40),
 		url character varying(400),
 		date character varying(20),
 		title character varying(400),
@@ -46,41 +49,52 @@ db.execute '''
 '''
 
 String messageInsert = '''
-	INSERT INTO message (url) VALUES (?);
+	INSERT INTO message (forum, subforum, url) VALUES (?, ?, ?);
 '''
 
 String messageUpdate = '''
 	UPDATE message SET date = ?, title = ?, content = ? WHERE url = ?;
 '''
 
-println "Stage 2: scrape message urls"
+println "Scraping topic URLs"
 ///////////////////////////////////////////////////////////////////////////////
 
 Browser.drive {
 	
-	println "Processing ${SUBFORUM_SUBJECT}"
+	println "Processing forum ${FORUM}"
 
-	go SUBFORUM_LANDING_PAGE_URL
+	go FORUM_BASE_URL
+	assert title == "Viva - Categorieën"
+ 
+	println "Processing subforum ${SUBFORUM}"
+
+	go SUBFORUM_BASE_URL
 	assert title == "Viva - Onderwerpen van forum Gezondheid"
  
 	def lastPageLink = $("dl.discussion-navigation.page-navigation.before dd a", rel: "next").previous()
 	def lastPageNumber = lastPageLink.text().toInteger()
 	assert lastPageNumber > 525
-	println "Subforum landing page links to ${lastPageNumber} pages with multiple topics"
+	println "Subforum base page links to ${lastPageNumber} pages with multiple topics"
 
-	def hrefList = []
+	def urlList = []
 
 	(FIRST_PAGE_NUMBER..lastPageNumber).each() {
 
 		currentPageNumber ->
 		println "Processing page ${currentPageNumber} of ${lastPageNumber}"
 
-		go "${SUBFORUM_PAGE_URL_PREFIX}?data[page]=${currentPageNumber}"
+		go "${PAGE_BASE_URL}?data[page]=${currentPageNumber}"
 		assert title == "Viva - Onderwerpen van forum Gezondheid"
 
 		def topicList = $("table tbody td.topic-name")
-		assert topicList.size() > 1
-		println "Page ${currentPageNumber} links to ${topicList.size()} topics"
+		def numberOfTopicsOnPage = topicList.size()
+		assert numberOfTopicsOnPage > 1
+		println "Page ${currentPageNumber} links to ${numberOfTopicsOnPage} topics"
+
+		if (currentPageNumber == FIRST_PAGE_NUMBER) {
+			def estimatedNumberOfTopics = (lastPageNumber - FIRST_PAGE_NUMBER) * numberOfTopicsOnPage + numberOfTopicsOnPage/2
+			println "Estimated number of topics:  ${estimatedNumberOfTopics}"
+		}
 
 		topicList.eachWithIndex() {
 
@@ -89,36 +103,38 @@ Browser.drive {
 			def topicLink = topic.find("a.topic-link")
 			def topicLinkText = topicLink.text()
 			def topicLinkHref = topicLink.@href
-			println "${i}: ${topicLinkText} -> ${topicLinkHref}" 
+			println "${i+1}/${numberOfTopicsOnPage}: ${topicLinkText.padRight(40)}|${topicLinkHref.padRight(40)}" 
 
-			hrefList.add(topicLinkHref)
+			urlList.add(topicLinkHref)
 
-			db.execute messageInsert, [topicLinkHref]
+			db.execute messageInsert, [FORUM, SUBFORUM, topicLinkHref]
 
 		}
 
 	}
 	
-	println "Stage 3: scrape messages"
+	println "Scraping messages"
 	///////////////////////////////////////////////////////////////////////////////
 
-	println "Processing ${hrefList.size()} topic pages"
+	def numberOfTopics = urlList.size()
+	println "Processing ${numberOfTopics} topic pages"
 
-	hrefList.eachWithIndex() {
+	urlList.eachWithIndex() {
 
-		href, i ->
+		url, i ->
 	
-		go "${href}"
+		go "${url}"
 
-		def messageTitle = $("h1").find("span.topic-name").text();
-		//assert title == "Viva - ${topicLinkText} - ${SUBFORUM_SUBJECT}"
+		def messageTitle = $("h1").find("span.topic-name").text().replaceAll('\\ -\\ Pagina\\ 1','');
+		def shortMessageTitle = messageTitle.length() > 40?"${messageTitle.replaceAll('\\r?\\n','\\\\n').substring(0,40)}+":messageTitle
+		assert title == "Viva - ${messageTitle} - ${SUBFORUM}"
 		def message = $("ol#firstmessage li.message")
 		def date = message.find("div.author-data address.posted-at").text();
 		def content = message.find("div.message-content div div.message-content-content").text();
-		def shortContent = content.length() > 80?"${content.replaceAll('\\r?\\n','\\\\n').substring(0,80)}...\"":content
-		println "${i}. Short content: \"${shortContent}\"" 
+		def shortContent = content.length() > 40?"${content.replaceAll('\\r?\\n','\\\\n').substring(0,40)}+":content
+		println "${i+1}/${numberOfTopics}: ${date}|${shortMessageTitle.padRight(41)}|${shortContent.padRight(41)}" 
 
-		db.execute messageUpdate, [date.toString(), messageTitle.toString(), content.toString(), href.toString()]
+		db.execute messageUpdate, [date.toString(), messageTitle.toString(), content.toString(), url.toString()]
 
 	}
 
