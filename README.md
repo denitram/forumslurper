@@ -1,30 +1,30 @@
 # Simple Groovy forum slurper
 
-Quick and dirty Groovy script to automate the collection of forum posts into a local Postgresql database. Name suggests something generic, but for now only suitable for one specific forum. Fetches topic starters' posts only.
+Quick and dirty Groovy script to automate collection of forum posts into a database. Name suggests something generic, but for now only suitable for one specific forum. Fetches topic starters' posts only.
 
 ## Usage
 
 ### Linux
 
-These instructions assume a GNU/Linux environment with Java, Groovy and a local Postgresql server. Just install the required dependencies with your favourite package manager.
+These instructions assume a GNU/Linux environment with Java and Groovy installed, plus a database accessible from wherever you're running the script. Just install the required dependencies with your favourite package manager.
 
-Postgres user's password is set in the script.
+Customize the string constants in the script to change database and forum properties. By default the slurper will collect Gezondheid topics from forum.viva.nl into a local Postgresql database.
 	
-1. Create db on local postgresql server
+1. Create db on local Postgresql server
 
     `createdb -Upostgres -hlocalhost forumslurper`
 
-2. Run script
+2. Run script with db driver on classpath [1]
 
     `groovy -cp postgresql-9.1-901.jdbc4.jar forumslurper.groovy`
 
-3. Watch db while script is running (2nd shell)
+Depending on the amount of messages you're downloading, the script may take some time to finish. You may want to see what's stored in the db while it's running from a secondary shell: `watch -n 2 'psql -t -Upostgres -hlocalhost -dforumslurper -c "select id,forum,subforum,substring(url from 1 for 40),date,substring(title from 1 for 40),substring(content from 1 for 40) from message order by date desc;"'` 
 
-    `watch -n 2 'psql -t -Upostgres -hlocalhost -dforumslurper -c "select id,forum,subforum,substring(url from 1 for 40),date,substring(title from 1 for 40),substring(content from 1 for 40) from message order by date desc;"'`
+[1] Would have included grab annotation for JDBC jar, but that appears to require system classloader, which doesn't sit well with either geb or selenium dependencies. Workaround is to put local jar on explicitly provided classpath.
 
 ### Windows
 
-Although it's possible to use Cygwin (http://cygwin.com) and GVM (http://gvmtool.net) to create a similar environment on Windows, it may be a bit of a hassle to get things running, and then turn out to be quite slow - well, it was on my virtualized XP in any case. To set up the prerequisites with native Windows packages instead:
+Although it's possible to use Cygwin (http://cygwin.com) and GVM (http://gvmtool.net) to create a similar environment on Windows, it may be a hassle to get things running, and then turn out to be quite slow - well, it was on my virtualized Windows XP. To set up the prerequisites with native Windows packages:
 
 1. Download and install a Java SE Development Kit
 
@@ -49,6 +49,3 @@ New Database, enter db name `forumslurper` and accept defaults
 
 Now run the script from a command prompt with `groovy -cp postgresql-9.1-901.jdbc4.jar -Dfile.encoding=UTF-8 forumslurper.groovy`
 
-## Issues
-
-* Would have included grab annotation for postgresql jar, but that appears to require system classloader, which doesn't sit well with either geb or selenium dependencies. Workaround is to put local jar on explicitly provided classpath.
