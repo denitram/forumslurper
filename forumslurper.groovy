@@ -21,7 +21,12 @@ FORUM_BASE_URL = "http://forum.viva.nl/forum"
 SUBFORUM = "Gezondheid"
 SUBFORUM_BASE_URL = "${FORUM_BASE_URL}/${SUBFORUM}/list_topics/6"
 PAGE_BASE_URL = SUBFORUM_BASE_URL
-FIRST_PAGE_NUMBER = 525
+FIRST_PAGE_NUMBER = 526
+
+def escapeDQuotes(string) {
+	//return string.replaceAll('"','""')
+	return string
+}
 
 println "Dropping and creating db table message"
 ///////////////////////////////////////////////////////////////////////////////
@@ -132,9 +137,9 @@ Browser.drive {
 		def date = message.find("div.author-data address.posted-at").text();
 		def content = message.find("div.message-content div div.message-content-content").text();
 		def shortContent = content.length() > 40?"${content.replaceAll('\\r?\\n','\\\\n').substring(0,40)}+":content
-		println "${i+1}/${numberOfTopics}: ${date}|${shortMessageTitle.padRight(41)}|${shortContent.padRight(41)}" 
+		println "${i+1}/${numberOfTopics}: ${date}|${escapeDQuotes(shortMessageTitle).padRight(41)}|${escapeDQuotes(shortContent).padRight(41)}" 
 
-		db.execute messageUpdate, [date.toString(), messageTitle.toString(), content.toString(), url.toString()]
+		db.execute messageUpdate, [date.toString(), escapeDQuotes(messageTitle.toString()), escapeDQuotes(content.toString()), url.toString()]
 
 	}
 
