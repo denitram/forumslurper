@@ -15,13 +15,19 @@ System.properties.with { p ->
 import geb.Browser
 import groovy.sql.Sql
 import org.postgresql.Driver
- 
-FORUM = "Viva"
-FORUM_BASE_URL = "http://forum.viva.nl/forum"
-SUBFORUM = "Gezondheid"
+
+///////////////////////////////////////////////////////////////////////////////
+FORUM = 'Viva'
+FORUM_BASE_URL = 'http://forum.viva.nl/forum'
+SUBFORUM = 'Gezondheid'
 SUBFORUM_BASE_URL = "${FORUM_BASE_URL}/${SUBFORUM}/list_topics/6"
 PAGE_BASE_URL = SUBFORUM_BASE_URL
 FIRST_PAGE_NUMBER = 526
+DB_URL = 'jdbc:postgresql://localhost/forumslurper'
+DB_USER = 'postgres'
+DB_PASSWORD = 'password'
+DB_DRIVER = 'org.postgresql.Driver'
+///////////////////////////////////////////////////////////////////////////////
 
 def escapeDQuotes(string) {
 	//return string.replaceAll('"','""')
@@ -29,13 +35,12 @@ def escapeDQuotes(string) {
 }
 
 println "Dropping and creating db table message"
-///////////////////////////////////////////////////////////////////////////////
 
 db = Sql.newInstance(
-	'jdbc:postgresql://localhost/forumslurper',
-	'postgres',
-	'password',
-	'org.postgresql.Driver'
+	DB_URL,
+	DB_USER,
+	DB_PASSWORD,
+	DB_DRIVER
 )
 
 db.execute '''
@@ -62,7 +67,6 @@ String messageUpdate = '''
 '''
 
 println "Scraping topic URLs"
-///////////////////////////////////////////////////////////////////////////////
 
 Browser.drive {
 	
@@ -119,7 +123,6 @@ Browser.drive {
 	}
 	
 	println "Scraping messages"
-	///////////////////////////////////////////////////////////////////////////////
 
 	def numberOfTopics = urlList.size()
 	println "Processing ${numberOfTopics} topic pages"
@@ -144,7 +147,3 @@ Browser.drive {
 	}
 
 }
-
-/*
-*/
-
