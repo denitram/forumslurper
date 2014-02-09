@@ -22,7 +22,7 @@ Depending on the number of messages you're downloading, the script may take cons
 
     watch -n 2 'psql -t -Upostgres -hlocalhost -dforumslurper -c "select * from message order by date desc;"'
 
-<a name="1">[1] Would have included grab annotation for JDBC jar, but that appears to require system classloader, which doesn't sit well with either geb or selenium dependencies. Workaround is to put local jar on explicitly provided classpath.</a>
+<a name="1">[1]</a> Would have included grab annotation for JDBC jar, but that appears to require system classloader, which doesn't sit well with either geb or selenium dependencies. Workaround is to put local jar on explicitly provided classpath.
 
 ### Windows
 
