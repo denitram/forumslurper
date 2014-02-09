@@ -18,7 +18,7 @@ Customize the string constants in the script to change database and forum proper
 
     `groovy -cp postgresql-9.1-901.jdbc4.jar forumslurper.groovy`
 
-Depending on the amount of messages you're downloading, the script may take some time to finish. You may want to see what's going into the db while it's running. From a secondary shell, run: `watch -n 2 'psql -t -Upostgres -hlocalhost -dforumslurper -c "select id,forum,subforum,url,date,title,substring(content from 1 for 40) from message order by date desc;"'` 
+Depending on the amount of messages you're downloading, the script may take some time to finish. You may want to see what's going into the db while it's running. From a secondary shell, run: `watch -n 2 'psql -t -Upostgres -hlocalhost -dforumslurper -c "select * from message order by date desc;"'`
 
 [1] Would have included grab annotation for JDBC jar, but that appears to require system classloader, which doesn't sit well with either geb or selenium dependencies. Workaround is to put local jar on explicitly provided classpath.
 
@@ -43,8 +43,8 @@ Although it's possible to use Cygwin (http://cygwin.com) and GVM (http://gvmtool
 3. Download and install Postgresql
 
     * Open http://www.postgresql.org/download/windows
-    * Download and install with defaults, and enter `password` for the administrative user postgres's password
-    * Create a database with pgadmin3 (Menu Start | Programs | PostgreSQL 9.3 | pgAdmin III; double click server on localhost:5432, supply password, right click Databases | 
+    * Download and install with defaults, and enter `password` for the administrative user `postgres`'s password
+    * Create a database with pgadmin3 (Menu Start | Programs | PostgreSQL 9.3 | pgAdmin III; double click server on `localhost:5432`, supply password, right click Databases | 
 New Database, enter db name `forumslurper` and accept defaults
 
 Now run the script from a command prompt with `groovy -cp postgresql-9.1-901.jdbc4.jar -Dfile.encoding=UTF-8 forumslurper.groovy`
