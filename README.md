@@ -22,6 +22,10 @@ Depending on the number of messages you're downloading, the script may take cons
 
     watch -n 2 'psql -t -Upostgres -hlocalhost -dforumslurper -c "select * from message order by date desc;"'
 
+It serves no purpose in this case, but it's possible to drive Firefox or Chrome to collect posts. To do this, specify either `firefox` or `chrome` for the run-time option `geb.env` (the third value, `htmlunit`, is the default - headless - driver) 
+
+    groovy -cp postgresql-9.1-901.jdbc4.jar -Dgeb.env=firefox forumslurper.groovy
+
 <a name="1">[1]</a> Would have included grab annotation for JDBC jar, but that appears to require system classloader, which doesn't sit well with either geb or selenium dependencies. Workaround is to put local jar on explicitly provided classpath.
 
 ### Windows
