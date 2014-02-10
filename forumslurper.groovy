@@ -21,10 +21,17 @@ import org.postgresql.Driver
 ///////////////////////////////////////////////////////////////////////////////
 FORUM = 'Viva'
 FORUM_BASE_URL = 'http://forum.viva.nl/forum'
+FORUM_EXPECTED_TITLE = 'Viva - Categorieën'
+
 SUBFORUM = 'Gezondheid'
 SUBFORUM_BASE_URL = "${FORUM_BASE_URL}/${SUBFORUM}/list_topics/6"
+SUBFORUM_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
+SUBFORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER = 525
+
 PAGE_BASE_URL = SUBFORUM_BASE_URL
-FIRST_PAGE_NUMBER = 526
+PAGE_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
+
+FIRST_PAGE_NUMBER = 527
 DB_URL = 'jdbc:postgresql://localhost/forumslurper'
 DB_USER = 'postgres'
 DB_PASSWORD = 'password'
@@ -75,16 +82,17 @@ Browser.drive {
 	println "Processing forum ${FORUM}"
 
 	go FORUM_BASE_URL
-	assert title == "Viva - Categorieën"
- 
+	assert title == FORUM_EXPECTED_TITLE
+
 	println "Processing subforum ${SUBFORUM}"
 
 	go SUBFORUM_BASE_URL
-	assert title == "Viva - Onderwerpen van forum Gezondheid"
+	assert title == SUBFORUM_EXPECTED_TITLE
  
 	def lastPageLink = $("dl.discussion-navigation.page-navigation.before dd a", rel: "next").previous()
 	def lastPageNumber = lastPageLink.text().toInteger()
-	assert lastPageNumber > 525
+	assert lastPageNumber > SUBFORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER
+
 	println "Subforum base page links to ${lastPageNumber} pages with multiple topics"
 
 	def urlList = []
@@ -92,10 +100,11 @@ Browser.drive {
 	(FIRST_PAGE_NUMBER..lastPageNumber).each() {
 
 		currentPageNumber ->
+
 		println "Processing page ${currentPageNumber} of ${lastPageNumber}"
 
 		go "${PAGE_BASE_URL}?data[page]=${currentPageNumber}"
-		assert title == "Viva - Onderwerpen van forum Gezondheid"
+		assert title == PAGE_EXPECTED_TITLE
 
 		def topicList = $("table tbody td.topic-name")
 		def numberOfTopicsOnPage = topicList.size()
@@ -137,7 +146,7 @@ Browser.drive {
 
 		def messageTitle = $("h1").find("span.topic-name").text().replaceAll('\\ -\\ Pagina\\ 1','');
 		def shortMessageTitle = messageTitle.length() > 40?"${messageTitle.replaceAll('\\r?\\n','\\\\n').substring(0,40)}+":messageTitle
-		assert title == "Viva - ${messageTitle} - ${SUBFORUM}"
+		assert title == "${FORUM} - ${messageTitle} - ${SUBFORUM}"
 		def message = $("ol#firstmessage li.message")
 		def date = message.find("div.author-data address.posted-at").text();
 		def content = message.find("div.message-content div div.message-content-content").text();
