@@ -4,6 +4,7 @@ See: http://www.gebish.org/manual/current/configuration.html
 */
 
 import org.openqa.selenium.Proxy
+import org.openqa.selenium.Proxy.ProxyType
 import org.openqa.selenium.Capabilities
 import org.openqa.selenium.remote.DesiredCapabilities
 import org.openqa.selenium.htmlunit.HtmlUnitDriver
@@ -11,30 +12,26 @@ import org.openqa.selenium.firefox.FirefoxDriver
 import org.openqa.selenium.chrome.ChromeDriver
 
 /*
-System.properties.with { p ->
-        proxyHost = p['http.proxyHost']
-        proxyPort = p['http.proxyPort']
-}
-*/
-
 Proxy proxy = new Proxy()
 proxy.setProxyAutoconfigUrl("http://wwwproxy.rivm.nl")
 DesiredCapabilities capabilities = DesiredCapabilities.htmlUnit()
 //capabilities.setCapability(CapabilityType.PROXY, proxy)
 capabilities.setCapability('PROXY', proxy)
 //WebDriver driver = new HtmlUnitDriver(capabilities)
-
-/*
-if (proxyHost != null && proxyPort != null) {   
-	Proxy proxy = new Proxy()
-	//proxy.proxyType(ProxyType.MANUAL) 
-	proxy.httpProxy(proxyHost+":"+proxyPort)
-	proxy.sslProxy(proxyHost+":"+proxyPort)
-	proxy.ftpProxy(proxyHost+":"+proxyPort)
-	Capabilities caps = new DesiredCapabilities()
-	caps.capability("proxy", proxy)
-}
 */
+
+proxyHost = System.getProperty('http.proxyHost')
+proxyPort = System.getProperty('http.proxyPort')
+if (proxyHost != null && proxyPort != null) {   
+	println ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ${proxyHost}"
+	Proxy proxy = new Proxy()
+	proxy.setProxyType(ProxyType.MANUAL) 
+	proxy.setHttpProxy(proxyHost+":"+proxyPort)
+	proxy.setSslProxy(proxyHost+":"+proxyPort)
+	proxy.setFtpProxy(proxyHost+":"+proxyPort)
+	DesiredCapabilities capabilities = DesiredCapabilities.htmlUnit()
+	capabilities.setCapability('PROXY', proxy)
+}
 
 //driver = { new HtmlUnitDriver() }
 driver = { new HtmlUnitDriver(capabilities) }
