@@ -1,5 +1,5 @@
 System.properties.with { p ->
-	p['geb.browser']='htmlunit'
+	//p['geb.browser']='htmlunit'
 	p['org.apache.commons.logging.Log']='org.apache.commons.logging.impl.NoOpLog'
 	//p['org.apache.commons.logging.Log']='org.apache.commons.logging.impl.SimpleLog'
 	//p['org.apache.commons.logging.simplelog.log.com.gargoylesoftware.htmlunit']='NONE'
@@ -9,7 +9,9 @@ System.properties.with { p ->
 //@Grab(group='postgresql', module='postgresql', version='9.1-901.jdbc4')
 @Grapes([
 	@Grab("org.gebish:geb-core:latest.release"),
-	@Grab("org.seleniumhq.selenium:selenium-htmlunit-driver:2.26.0"),
+	@Grab("org.seleniumhq.selenium:selenium-htmlunit-driver:2.37.1"),
+	@Grab("org.seleniumhq.selenium:selenium-chrome-driver:2.37.1"),
+	@Grab("org.seleniumhq.selenium:selenium-firefox-driver:2.37.1"),
 ])
 
 import geb.Browser
