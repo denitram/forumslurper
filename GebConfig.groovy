@@ -15,10 +15,12 @@ proxyHost = System.getProperty('http.proxyHost')
 proxyPort = System.getProperty('http.proxyPort')
 
 def isProxied() {
+	println "in isProxied"
 	return (proxyHost != null && proxyPort != null)   
 }
 
 def buildProxyCaps(caps) {
+	println "in buildProxyCaps"
 	Proxy proxy = new Proxy()
 	proxy.setProxyType(ProxyType.MANUAL) 
 	proxy.setHttpProxy(proxyHost+":"+proxyPort)
@@ -30,6 +32,7 @@ def buildProxyCaps(caps) {
 
 if (isProxied) {
 	DesiredCapabilities capabilities = DesiredCapabilities.htmlUnit()
+	capabilities = buildProxyCaps(capabilities)
 	driver = { new HtmlUnitDriver(capabilities) }
 } else {
 	driver = { new HtmlUnitDriver() }
@@ -41,8 +44,15 @@ environments {
 	// See: http://code.google.com/p/selenium/wiki/HtmlUnitDriver
 	htmlunit {
 		if (isProxied) {
+			println "in htmlunit"
 			DesiredCapabilities capabilities = DesiredCapabilities.htmlUnit()
+			capabilities = buildProxyCaps(capabilities)
 			driver = { new HtmlUnitDriver(capabilities) }
+			assert driver != null
+			assert driver.capabilities != null
+			println "---------------------"
+			println driver.capabilities.asMap().each{ println "${it.key}=${it.value}" }
+			println "---------------------"
 		} else {
 			driver = { new HtmlUnitDriver() }
 		}
@@ -53,6 +63,7 @@ environments {
 	chrome {
 		if (isProxied) {
 			DesiredCapabilities capabilities = DesiredCapabilities.chrom()
+			capabilities = buildProxyCaps(capabilities)
 			driver = { new ChromeDriver(capabilities) }
 		} else {
 			driver = { new ChromeDriver() }
@@ -64,6 +75,7 @@ environments {
 	firefox {
 		if (isProxied) {
 			DesiredCapabilities capabilities = DesiredCapabilities.firefox()
+			capabilities = buildProxyCaps(capabilities)
 			driver = { new FirefoxDriver(capabilities) }
 		} else {
 			driver = { new FirefoxDriver() }

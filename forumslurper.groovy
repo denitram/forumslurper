@@ -18,6 +18,15 @@ import geb.Browser
 import groovy.sql.Sql
 import org.postgresql.Driver
 
+import org.openqa.selenium.Proxy
+import org.openqa.selenium.Proxy.ProxyType
+import org.openqa.selenium.Capabilities
+import org.openqa.selenium.remote.DesiredCapabilities
+
+//import org.openqa.selenium.htmlunit.HtmlUnitDriver
+//import org.openqa.selenium.firefox.FirefoxDriver
+//import org.openqa.selenium.chrome.ChromeDriver
+
 ///////////////////////////////////////////////////////////////////////////////
 FORUM = 'Viva'
 FORUM_BASE_URL = 'http://forum.viva.nl/forum'
@@ -41,6 +50,21 @@ DB_DRIVER = 'org.postgresql.Driver'
 def escapeDQuotes(string) {
 	//return string.replaceAll('"','""')
 	return string
+}
+
+def isProxied() {
+	return (System.getProperty('http.proxyHost') != null && System.getProperty('http.proxyPort') != null)   
+}
+
+def buildProxy() {
+	proxyHost = System.getProperty('http.proxyHost')
+	proxyPort = System.getProperty('http.proxyPort')
+	Proxy proxy = new Proxy()
+	proxy.setProxyType(ProxyType.MANUAL) 
+	proxy.setHttpProxy(proxyHost+":"+proxyPort)
+	proxy.setSslProxy(proxyHost+":"+proxyPort)
+	proxy.setFtpProxy(proxyHost+":"+proxyPort)
+	return proxy
 }
 
 println "Dropping and creating db table message"
@@ -78,7 +102,25 @@ String messageUpdate = '''
 println "Scraping topic URLs"
 
 Browser.drive {
-	
+
+	assert driver != null
+	assert driver.capabilities != null
+	if (isProxied()) {
+		println "Adding proxy to driver capabilities"
+		Proxy proxy = buildProxy()
+		assert proxy != null
+		println proxy
+		driver.capabilities.setCapability('PROXY', buildProxy())
+	}
+	if (isProxied()) {
+		println "Adding proxy to driver capabilities (method 2)"
+		proxyHost = System.getProperty('http.proxyHost')
+		proxyPort = System.getProperty('http.proxyPort')
+		driver.setProxy(proxyHost, proxyPort.toInteger())
+	}
+	println "Driver capabilities:"
+	println driver.capabilities.asMap().each{ println "${it.key}=${it.value}" }
+
 	println "Processing forum ${FORUM}"
 
 	go FORUM_BASE_URL
