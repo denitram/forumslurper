@@ -1,6 +1,6 @@
 # Simple Groovy forum slurper
 
-Quick and dirty Groovy script to automate collection of forum posts into a database. Name suggests something generic, but for now only suitable for one specific forum. Fetches topic starters' posts only. [Geb](http://http://www.gebish.org)/[WebDriver](http://docs.seleniumhq.org/projects/webdriver/) are used to automate the process of crawling forum pages.
+Quick and dirty Groovy script to automate collection of forum posts into a database. Name suggests something generic, but for now only suitable for one specific forum. Fetches topic starters' posts only. The script uses [Geb](http://www.gebish.org) and [WebDriver](http://docs.seleniumhq.org/projects/webdriver/) to crawl forum pages.
 
 ## Usage
 
@@ -34,7 +34,7 @@ Limited proxy support is available. Auto configuration is not supported, and Fir
 
     groovy -cp postgresql-9.1-901.jdbc4.jar -Dhttp.proxyHost=wwwproxy.rivm.nl -Dhttp.proxyPort=8080 ForumSlurper.groovy
 
-<a name="1">[1]</a> Would have included grab annotation for JDBC jar, but that appears to require system classloader, which doesn't sit well with either geb or selenium dependencies. Workaround is to put local jar on explicitly provided classpath.
+<a name="1">[1]</a> Would have included Grab annotation for JDBC jar, but that appears to require system classloader, which doesn't sit well with either Geb or Selenium dependencies. Workaround is to put the provided Postgresql JDBC jar on the classpath explicitly.
 
 ### Windows
 
