@@ -1,6 +1,6 @@
 # Simple Groovy forum slurper
 
-Quick and dirty Groovy script to automate collection of forum posts into a database. Name suggests something generic, but for now only suitable for one specific forum. Fetches topic starters' posts only.
+Quick and dirty Groovy script to automate collection of forum posts into a database. Name suggests something generic, but for now only suitable for one specific forum. Fetches topic starters' posts only. [Geb](http://http://www.gebish.org)/[WebDriver](http://docs.seleniumhq.org/projects/webdriver/) are used to automate the process of crawling forum pages.
 
 ## Usage
 
@@ -16,21 +16,29 @@ Customize the string constants in the script to change database and forum proper
 
 2. Run script with db driver on classpath [[1]](#1)
 
-    `groovy -cp postgresql-9.1-901.jdbc4.jar forumslurper.groovy`
+    `groovy -cp postgresql-9.1-901.jdbc4.jar ForumSlurper.groovy`
 
 Depending on the number of messages you're downloading, the script may take considerable time to finish. If you want to follow what's going into the db while it's running, run something like
 
     watch -n 2 'psql -t -Upostgres -hlocalhost -dforumslurper -c "select * from message order by date desc;"'
 
-It serves no purpose in this case, but it's possible to drive Firefox or Chrome to collect posts. To do this, specify either `firefox` or `chrome` for the run-time option `geb.env` (the third value, `htmlunit`, is the default - headless - driver) 
+#### Headless and browser modes
+ 
+By default the script employs a headless HTTP client, but it's possible to use Firefox or Chrome to collect posts. To do this, specify either `firefox` or `chrome` for the run-time option `geb.env` (the third value, `htmlunit`, is the default driver). 
 
-    groovy -cp postgresql-9.1-901.jdbc4.jar -Dgeb.env=firefox forumslurper.groovy
+    groovy -cp postgresql-9.1-901.jdbc4.jar -Dgeb.env=firefox ForumSlurper.groovy
+
+#### Proxy support
+
+Limited proxy support is available. Auto configuration is not supported, and Firefox/Chrome don't seem to pick up explicitly provided proxy settings. They will use system proxy settings by default, and may therefore work anyway.
+
+    groovy -cp postgresql-9.1-901.jdbc4.jar -Dhttp.proxyHost=wwwproxy.rivm.nl -Dhttp.proxyPort=8080 ForumSlurper.groovy
 
 <a name="1">[1]</a> Would have included grab annotation for JDBC jar, but that appears to require system classloader, which doesn't sit well with either geb or selenium dependencies. Workaround is to put local jar on explicitly provided classpath.
 
 ### Windows
 
-Although it's possible to use Cygwin (http://cygwin.com) and GVM (http://gvmtool.net) to create a similar environment on Windows, it may be a hassle to get things running, and then turn out to be quite slow - well, it was on my virtualized Windows XP. To set up the prerequisites with native Windows packages:
+Although it's possible to use [Cygwin](http://cygwin.com) and [GVM](http://gvmtool.net) to create a similar environment on Windows, it may be a hassle to get things running, and then turn out to be quite slow - well, it was on my virtualized Windows XP. To set up the prerequisites with native Windows packages:
 
 1. Download and install a Java SE Development Kit
     1. Open http://www.oracle.com/technetwork/java/javase/downloads/index.html
@@ -49,4 +57,4 @@ Although it's possible to use Cygwin (http://cygwin.com) and GVM (http://gvmtool
 
 Now run the script from a command prompt with
 
-    groovy -cp postgresql-9.1-901.jdbc4.jar -Dfile.encoding=UTF-8 forumslurper.groovy
+    groovy -cp postgresql-9.1-901.jdbc4.jar -Dfile.encoding=UTF-8 ForumSlurper.groovy
