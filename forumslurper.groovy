@@ -23,9 +23,9 @@ import org.openqa.selenium.Proxy.ProxyType
 import org.openqa.selenium.Capabilities
 import org.openqa.selenium.remote.DesiredCapabilities
 
-//import org.openqa.selenium.htmlunit.HtmlUnitDriver
-//import org.openqa.selenium.firefox.FirefoxDriver
-//import org.openqa.selenium.chrome.ChromeDriver
+import org.openqa.selenium.htmlunit.HtmlUnitDriver
+import org.openqa.selenium.firefox.FirefoxDriver
+import org.openqa.selenium.chrome.ChromeDriver
 
 ///////////////////////////////////////////////////////////////////////////////
 FORUM = 'Viva'
@@ -103,20 +103,17 @@ println "Scraping topic URLs"
 
 Browser.drive {
 
-	assert driver != null
-	assert driver.capabilities != null
 	if (isProxied()) {
-		println "Adding proxy to driver capabilities"
-		Proxy proxy = buildProxy()
-		assert proxy != null
-		println proxy
-		driver.capabilities.setCapability('PROXY', buildProxy())
-	}
-	if (isProxied()) {
-		println "Adding proxy to driver capabilities (method 2)"
-		proxyHost = System.getProperty('http.proxyHost')
-		proxyPort = System.getProperty('http.proxyPort')
-		driver.setProxy(proxyHost, proxyPort.toInteger())
+		if (driver instanceof HtmlUnitDriver) {
+			println "Adding proxy to driver (htmlunit)"
+			proxyHost = System.getProperty('http.proxyHost')
+			proxyPort = System.getProperty('http.proxyPort')
+			driver.setProxy(proxyHost, proxyPort.toInteger())
+		} else {
+			println "Adding proxy to driver capabilities (firefox, chrome)"
+			Proxy proxy = buildProxy()
+			driver.capabilities.setCapability('PROXY', buildProxy())
+		}
 	}
 	println "Driver capabilities:"
 	println driver.capabilities.asMap().each{ println "${it.key}=${it.value}" }
