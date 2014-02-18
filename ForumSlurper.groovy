@@ -47,7 +47,7 @@ DB_PASSWORD = 'password'
 DB_DRIVER = 'org.postgresql.Driver'
 ///////////////////////////////////////////////////////////////////////////////
 
-String createTableStmt = '''
+createTableStmt = '''
 	DROP TABLE IF EXISTS message;
 	CREATE TABLE message
 	(
@@ -90,7 +90,7 @@ def buildProxy() {
 	return proxy
 }
 
-def initDb(createTableStmt) {
+def initDb() {
 	println "Dropping and creating db table message"
 	db = Sql.newInstance(
 		DB_URL,
@@ -102,7 +102,7 @@ def initDb(createTableStmt) {
 	return db
 }
 
-db = initDb(createTableStmt)
+db = initDb()
 
 println "Scraping topic URLs"
 
