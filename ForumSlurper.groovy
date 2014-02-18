@@ -12,7 +12,12 @@ PAGE_BASE_URL = SUB_FORUM_BASE_URL
 PAGE_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
 
 FIRST_PAGE_NUMBER = 526
+// Use -1 to run until actual last page
+//LAST_PAGE_NUMBER = -1
+LAST_PAGE_NUMBER = 525
 MAX_LABEL_WIDTH = 40
+
+DEBUG = false
 ///////////////////////////////////////////////////////////////////////////////
 
 System.properties.with { p ->
@@ -44,7 +49,6 @@ import org.openqa.selenium.htmlunit.HtmlUnitDriver
 import org.openqa.selenium.firefox.FirefoxDriver
 import org.openqa.selenium.chrome.ChromeDriver
 
-DEBUG = false
 DB_URL = 'jdbc:postgresql://localhost/forumslurper'
 DB_USER = 'postgres'
 DB_PASSWORD = 'password'
@@ -147,22 +151,34 @@ def collectTopicBaseUrls() {
 		def lastPageNumber = lastPageLink.text().toInteger()
 		assert lastPageNumber >= SUB_FORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER
 		println "Sub-forum base page links to ${lastPageNumber} pages with multiple topics"
-	
+
+		if (LAST_PAGE_NUMBER != -1) {
+			lastPageNumber = LAST_PAGE_NUMBER
+		}
+
+		assert FIRST_PAGE_NUMBER <= lastPageNumber
+		def numberOfPages = lastPageNumber - FIRST_PAGE_NUMBER + 1
+
 		go "${PAGE_BASE_URL}?data[page]=${FIRST_PAGE_NUMBER}"
 		def firstPageTopicList = $("table tbody td.topic-name")
 		def numberOfTopicsOnFirstPage = firstPageTopicList.size()
 
-		go "${PAGE_BASE_URL}?data[page]=${lastPageNumber}"
-		def lastPageTopicList = $("table tbody td.topic-name")
-		def numberOfTopicsOnLastPage = lastPageTopicList.size()
-		
-		def totalNumberOfTopics = (lastPageNumber - FIRST_PAGE_NUMBER) * numberOfTopicsOnFirstPage + numberOfTopicsOnLastPage
+		def totalNumberOfTopics
+		if (numberOfPages < 2) {
+			println "This run will try to collect messages from a single page (${FIRST_PAGE_NUMBER})"
+			totalNumberOfTopics = numberOfTopicsOnFirstPage
+		} else {
+			println "This run will try to collect messages from ${numberOfPages} pages (${FIRST_PAGE_NUMBER} - ${lastPageNumber})"
+			go "${PAGE_BASE_URL}?data[page]=${lastPageNumber}"
+			def lastPageTopicList = $("table tbody td.topic-name")
+			def numberOfTopicsOnLastPage = lastPageTopicList.size()
+			totalNumberOfTopics = (numberOfPages - 1) * numberOfTopicsOnFirstPage + numberOfTopicsOnLastPage
+		}
 		println "Total number of topics to queue: ${totalNumberOfTopics}"
 
-//		(FIRST_PAGE_NUMBER..lastPageNumber).each() {
-		(FIRST_PAGE_NUMBER..526).each() {
-			currentPageNumber ->
-			println "Processing page ${currentPageNumber} of ${lastPageNumber}"
+		(FIRST_PAGE_NUMBER..lastPageNumber).eachWithIndex() {
+			currentPageNumber, i ->
+			println "Processing page ${currentPageNumber} (#${i+1} of ${numberOfPages})"
 	
 			go "${PAGE_BASE_URL}?data[page]=${currentPageNumber}"
 			assert title == PAGE_EXPECTED_TITLE
@@ -173,10 +189,10 @@ def collectTopicBaseUrls() {
 			println "Page ${currentPageNumber} links to ${numberOfTopicsOnPage} topics"
 
 			topicList.eachWithIndex() {
-				topic, i ->
+				topic, j ->
 				def topicLink = topic.find("a.topic-link")
 				def topicBaseUrl = topicLink.@href
-				println "Queueing topic base page url ${topicBaseUrls.size()} of ${totalNumberOfTopics}: ${topicBaseUrl.padRight(MAX_LABEL_WIDTH)}" 
+				println "Queueing topic base page url #${topicBaseUrls.size()+1} of ${totalNumberOfTopics}: ${topicBaseUrl.padRight(MAX_LABEL_WIDTH)}" 
 				topicBaseUrls.add(topicBaseUrl)
 				db.execute INSERT_TOPIC_STMT, [FORUM, SUB_FORUM, topicBaseUrl, true]
 			}
@@ -192,23 +208,23 @@ def collectTopicUrls(topicBaseUrls) {
 		println "Processing ${SUB_FORUM} topics"
 		topicBaseUrls.eachWithIndex() {
 			url, i ->
-			println "Processing topic ${i+1} of ${topicBaseUrls.size()}" 
+			println "Processing topic #${i+1} of ${topicBaseUrls.size()}" 
 			go "${url}"
 			println "Re-queueing topic base url: ${url.padRight(MAX_LABEL_WIDTH)}"
 			topicUrls.add(url)
 			def lastPageLink = $("dl.topic-navigation.page-navigation.before dd a.rel", rel: "last").previous()
 			def lastPageNumber
 			if (lastPageLink.size() == 0) {
-				println "Topic base page links to 1 page with messages"
+				println "Topic consists of a single page"
 				db.execute UPDATE_TOPIC_PAGES_STMT, [1, url]
 			} else {
 				lastPageNumber = lastPageLink.text().toInteger()
-				println "Topic base page links to ${lastPageNumber} pages with messages"
+				println "Topic base page links to ${lastPageNumber-1} more pages"
 				db.execute UPDATE_TOPIC_PAGES_STMT, [lastPageNumber, url]
 				(1..lastPageNumber-1).each() {
 					currentPageNumber ->
 					def topicSubUrl = "${url}/${currentPageNumber}"
-					println "Queueing topic sub-url ${currentPageNumber} of ${lastPageNumber-1}: ${topicSubUrl.padRight(MAX_LABEL_WIDTH)}"
+					println "Queueing topic sub-url #${currentPageNumber} of ${lastPageNumber-1}: ${topicSubUrl.padRight(MAX_LABEL_WIDTH)}"
 					topicUrls.add(topicSubUrl)
 				}
 			}
@@ -233,7 +249,6 @@ def extractTopicBaseUrl(url) {
 }
 
 def extractSubPage(url) {
-//	def pattern = ~/^(.*)\/list_messages\/(\d*)(\/?)(\d*)$/
 	def pattern = ~/^(.*\/list_messages\/\d*)(\/?)(\d*)$/
 	def matcher = pattern.matcher(url)
 	if (DEBUG) {
@@ -252,6 +267,8 @@ def collectMessages(topicUrls) {
 	Browser.drive {
 		driver = confDriver(driver)
 		println "Processing ${topicUrls.size()} topic pages"
+		def messageCount = 0
+		def replyCount = 0
 		topicUrls.eachWithIndex() {
 			url, i ->
 			go "${url}"
@@ -265,7 +282,9 @@ def collectMessages(topicUrls) {
 				def date = firstMessage.find("div.author-data address.posted-at").text();
 				def content = firstMessage.find("div.message-content div div.message-content-content").text();
 				def shortContent = content.length() > MAX_LABEL_WIDTH?"${content.replaceAll('\\r?\\n','\\\\n').substring(0,MAX_LABEL_WIDTH)}+":content
-				println "Storing topic's first message ${i+1} of ${topicUrls.size()}: ${date}|${shortMessageTitle.padRight(MAX_LABEL_WIDTH+1)}|${shortContent.padRight(MAX_LABEL_WIDTH+1)}"
+				messageCount++
+				replyCount = 0
+				println "Storing first message (topic #${i+1} of ${topicUrls.size()}; message #${messageCount}): |${date}|${shortMessageTitle.padRight(MAX_LABEL_WIDTH+1)}|${shortContent.padRight(MAX_LABEL_WIDTH+1)}|"
 				db.execute UPDATE_TOPIC_CONTENT_STMT, [date.toString(), messageTitle.toString(), content.toString(), url.toString()]
 			}
 			def replies = $("ol#messages li.message")
@@ -274,7 +293,9 @@ def collectMessages(topicUrls) {
 				def date = reply.find("div.author-data address.posted-at").text();
 				def content = reply.find("div.message-content div div.message-content-content").text();
 				def shortContent = content.length() > MAX_LABEL_WIDTH?"${content.replaceAll('\\r?\\n','\\\\n').substring(0,MAX_LABEL_WIDTH)}+":content
-				println "Storing reply message ${j+1} of ${replies.size()} on topic sub-page ${subPage}: ${date}|${shortMessageTitle.padRight(MAX_LABEL_WIDTH+1)}|${shortContent.padRight(MAX_LABEL_WIDTH+1)}"
+				messageCount++
+				replyCount++
+				println "Storing reply message #${replyCount} on topic ${(subPage==''?'base page':'sub-page '+subPage)} (topic #${i+1} of ${topicUrls.size()}; message #${messageCount}): |${date}|${shortMessageTitle.padRight(MAX_LABEL_WIDTH+1)}|${shortContent.padRight(MAX_LABEL_WIDTH+1)}|"
 				db.execute INSERT_REPLY_STMT, [FORUM, SUB_FORUM, topicBaseUrl, false, (subPage==''?null:subPage.toInteger()), date.toString(), messageTitle.toString(), content.toString()]
 			}
 		}
