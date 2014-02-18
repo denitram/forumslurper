@@ -12,6 +12,7 @@ PAGE_BASE_URL = SUBFORUM_BASE_URL
 PAGE_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
 
 FIRST_PAGE_NUMBER = 528
+MAX_LABEL_WIDTH = 40
 ///////////////////////////////////////////////////////////////////////////////
 
 System.properties.with { p ->
@@ -67,11 +68,6 @@ INSERT_MESSAGE_STMT = '''
 UPDATE_MESSAGE_STMT = '''
 	UPDATE message SET date = ?, title = ?, content = ? WHERE url = ?;
 '''
-
-def escapeDQuotes(string) {
-	//return string.replaceAll('"','""')
-	return string
-}
 
 def isProxied() {
 	return (System.getProperty('http.proxyHost') != null && System.getProperty('http.proxyPort') != null)   
@@ -188,14 +184,14 @@ def scrapeMessages(topicUrlList) {
 			url, i ->
 			go "${url}"
 			def messageTitle = $("h1").find("span.topic-name").text().replaceAll('\\ -\\ Pagina\\ 1','');
-			def shortMessageTitle = messageTitle.length() > 40?"${messageTitle.replaceAll('\\r?\\n','\\\\n').substring(0,40)}+":messageTitle
+			def shortMessageTitle = messageTitle.length() > MAX_LABEL_WIDTH?"${messageTitle.replaceAll('\\r?\\n','\\\\n').substring(0,MAX_LABEL_WIDTH)}+":messageTitle
 			assert title == "${FORUM} - ${messageTitle} - ${SUBFORUM}"
 			def message = $("ol#firstmessage li.message")
 			def date = message.find("div.author-data address.posted-at").text();
 			def content = message.find("div.message-content div div.message-content-content").text();
-			def shortContent = content.length() > 40?"${content.replaceAll('\\r?\\n','\\\\n').substring(0,40)}+":content
-			println "${i+1}/${numberOfTopics}: ${date}|${escapeDQuotes(shortMessageTitle).padRight(41)}|${escapeDQuotes(shortContent).padRight(41)}" 
-			db.execute UPDATE_MESSAGE_STMT, [date.toString(), escapeDQuotes(messageTitle.toString()), escapeDQuotes(content.toString()), url.toString()]
+			def shortContent = content.length() > MAX_LABEL_WIDTH?"${content.replaceAll('\\r?\\n','\\\\n').substring(0,MAX_LABEL_WIDTH)}+":content
+			println "${i+1}/${numberOfTopics}: ${date}|${shortMessageTitle.padRight(MAX_LABEL_WIDTH+1)}|${shortContent.padRight(MAX_LABEL_WIDTH+1)}" 
+			db.execute UPDATE_MESSAGE_STMT, [date.toString(), messageTitle.toString(), content.toString(), url.toString()]
 		}
 	}
 }
