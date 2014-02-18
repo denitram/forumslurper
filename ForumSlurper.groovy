@@ -44,6 +44,7 @@ import org.openqa.selenium.htmlunit.HtmlUnitDriver
 import org.openqa.selenium.firefox.FirefoxDriver
 import org.openqa.selenium.chrome.ChromeDriver
 
+DEBUG = true
 DB_URL = 'jdbc:postgresql://localhost/forumslurper'
 DB_USER = 'postgres'
 DB_PASSWORD = 'password'
@@ -84,6 +85,26 @@ def buildProxy() {
 	return proxy
 }
 
+def confDriver(driver) {
+	if (isProxied()) {
+		if (driver instanceof HtmlUnitDriver) {
+			println "Adding proxy to driver (htmlunit)"
+			proxyHost = System.getProperty('http.proxyHost')
+			proxyPort = System.getProperty('http.proxyPort')
+			driver.setProxy(proxyHost, proxyPort.toInteger())
+		} else {
+			println "Adding proxy to driver capabilities (firefox, chrome)"
+			Proxy proxy = buildProxy()
+			driver.capabilities.setCapability('PROXY', buildProxy())
+		}
+	}
+	if (DEBUG) {
+		println "Driver capabilities:"
+		println driver.capabilities.asMap().each{ println "${it.key}=${it.value}" }
+	}
+	return driver
+}
+
 def initDb() {
 	println "Dropping and creating db table message"
 	db = Sql.newInstance(
@@ -100,20 +121,7 @@ def scrapeTopics() {
 	println "Scraping topic URLs"
 	def topicUrlList = []
 	Browser.drive {
-		if (isProxied()) {
-			if (driver instanceof HtmlUnitDriver) {
-				println "Adding proxy to driver (htmlunit)"
-				proxyHost = System.getProperty('http.proxyHost')
-				proxyPort = System.getProperty('http.proxyPort')
-				driver.setProxy(proxyHost, proxyPort.toInteger())
-			} else {
-				println "Adding proxy to driver capabilities (firefox, chrome)"
-				Proxy proxy = buildProxy()
-				driver.capabilities.setCapability('PROXY', buildProxy())
-			}
-		}
-		println "Driver capabilities:"
-		println driver.capabilities.asMap().each{ println "${it.key}=${it.value}" }
+		driver = confDriver(driver)
 	
 		println "Processing forum ${FORUM}"
 		go FORUM_BASE_URL
@@ -162,20 +170,7 @@ def scrapeTopics() {
 def scrapeMessages(topicUrlList) {
 	println "Scraping messages"
 	Browser.drive {
-		if (isProxied()) {
-			if (driver instanceof HtmlUnitDriver) {
-				println "Adding proxy to driver (htmlunit)"
-				proxyHost = System.getProperty('http.proxyHost')
-				proxyPort = System.getProperty('http.proxyPort')
-				driver.setProxy(proxyHost, proxyPort.toInteger())
-			} else {
-				println "Adding proxy to driver capabilities (firefox, chrome)"
-				Proxy proxy = buildProxy()
-				driver.capabilities.setCapability('PROXY', buildProxy())
-			}
-		}
-		println "Driver capabilities:"
-		println driver.capabilities.asMap().each{ println "${it.key}=${it.value}" }
+		driver = confDriver(driver)
 
 		def numberOfTopics = topicUrlList.size()
 		println "Processing ${numberOfTopics} topic pages"
