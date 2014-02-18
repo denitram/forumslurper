@@ -14,7 +14,7 @@ PAGE_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
 FIRST_PAGE_NUMBER = 526
 // Use -1 to run until actual last page
 //LAST_PAGE_NUMBER = -1
-LAST_PAGE_NUMBER = 525
+LAST_PAGE_NUMBER = 527
 MAX_LABEL_WIDTH = 40
 
 DEBUG = false
@@ -295,7 +295,7 @@ def collectMessages(topicUrls) {
 				def shortContent = content.length() > MAX_LABEL_WIDTH?"${content.replaceAll('\\r?\\n','\\\\n').substring(0,MAX_LABEL_WIDTH)}+":content
 				messageCount++
 				replyCount++
-				println "Storing reply message #${replyCount} on topic ${(subPage==''?'base page':'sub-page '+subPage)} (topic #${i+1} of ${topicUrls.size()}; message #${messageCount}): |${date}|${shortMessageTitle.padRight(MAX_LABEL_WIDTH+1)}|${shortContent.padRight(MAX_LABEL_WIDTH+1)}|"
+				println "Storing reply message #${replyCount} on topic ${(subPage==''?'base page':'sub-page #'+subPage)} (topic #${i+1} of ${topicUrls.size()}; message #${messageCount}): |${date}|${shortMessageTitle.padRight(MAX_LABEL_WIDTH+1)}|${shortContent.padRight(MAX_LABEL_WIDTH+1)}|"
 				db.execute INSERT_REPLY_STMT, [FORUM, SUB_FORUM, topicBaseUrl, false, (subPage==''?null:subPage.toInteger()), date.toString(), messageTitle.toString(), content.toString()]
 			}
 		}
