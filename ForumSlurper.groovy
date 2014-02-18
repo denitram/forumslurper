@@ -3,12 +3,12 @@ FORUM = 'Viva'
 FORUM_BASE_URL = 'http://forum.viva.nl/forum'
 FORUM_EXPECTED_TITLE = 'Viva - Categorieën'
 
-SUBFORUM = 'Gezondheid'
-SUBFORUM_BASE_URL = "${FORUM_BASE_URL}/${SUBFORUM}/list_topics/6"
-SUBFORUM_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
-SUBFORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER = 528
+SUB_FORUM = 'Gezondheid'
+SUB_FORUM_BASE_URL = "${FORUM_BASE_URL}/${SUB_FORUM}/list_topics/6"
+SUB_FORUM_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
+SUB_FORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER = 528
 
-PAGE_BASE_URL = SUBFORUM_BASE_URL
+PAGE_BASE_URL = SUB_FORUM_BASE_URL
 PAGE_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
 
 FIRST_PAGE_NUMBER = 526
@@ -55,22 +55,28 @@ CREATE_TABLE_STMT = '''
 	(
 		id SERIAL,
 		forum character varying(40),
-		subforum character varying(40),
-		url character varying(400),
-		topic boolean,
-		pages integer,
-		page integer,
+		sub_forum character varying(40),
+		topic_base_url character varying(400),
+		is_topic boolean,
+		nr_of_pages integer,
+		sub_page integer,
 		date character varying(20),
 		title character varying(400),
 		content character varying(8000),
 		CONSTRAINT message_pkey PRIMARY KEY (id)
 	)
 '''
-INSERT_MESSAGE_STMT = '''
-	INSERT INTO message (forum, subforum, url, topic) VALUES (?, ?, ?, ?);
+INSERT_TOPIC_STMT = '''
+	INSERT INTO message (forum, sub_forum, topic_base_url, is_topic) VALUES (?, ?, ?, ?);
 '''
-UPDATE_MESSAGE_STMT = '''
-	UPDATE message SET date = ?, title = ?, content = ? WHERE url = ?;
+UPDATE_TOPIC_PAGES_STMT = '''
+	UPDATE message SET nr_of_pages = ? WHERE topic_base_url = ?;
+'''
+UPDATE_TOPIC_CONTENT_STMT = '''
+	UPDATE message SET date = ?, title = ?, content = ? WHERE topic_base_url = ?;
+'''
+INSERT_REPLY_STMT = '''
+	INSERT INTO message (forum, sub_forum, topic_base_url, is_topic, sub_page, date, title, content) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 '''
 
 def isProxied() {
@@ -120,28 +126,27 @@ def initDb() {
 	return db
 }
 
-def scrapeForum() {
+def displayForumAndSubForum() {
 	Browser.drive {
 		driver = confDriver(driver)
 		println "Processing forum ${FORUM}"
 		go FORUM_BASE_URL
 		assert title == FORUM_EXPECTED_TITLE
+		println "Processing sub-forum ${SUB_FORUM}"
+		go SUB_FORUM_BASE_URL
+		assert title == SUB_FORUM_EXPECTED_TITLE	 
 	}
 }
 	
-def scrapeSubforum() {
-	def subforumUrlList = []
+def collectTopicBaseUrls() {
+	def topicBaseUrls = []
 	Browser.drive {
 		driver = confDriver(driver)
 		
-		println "Processing subforum ${SUBFORUM}"
-		go SUBFORUM_BASE_URL
-		assert title == SUBFORUM_EXPECTED_TITLE
-	 
 		def lastPageLink = $("dl.discussion-navigation.page-navigation.before dd a", rel: "next").previous()
 		def lastPageNumber = lastPageLink.text().toInteger()
-		assert lastPageNumber >= SUBFORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER
-		println "Subforum base page links to ${lastPageNumber} pages with multiple topics"
+		assert lastPageNumber >= SUB_FORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER
+		println "Sub-forum base page links to ${lastPageNumber} pages with multiple topics"
 	
 		go "${PAGE_BASE_URL}?data[page]=${FIRST_PAGE_NUMBER}"
 		def firstPageTopicList = $("table tbody td.topic-name")
@@ -152,9 +157,10 @@ def scrapeSubforum() {
 		def numberOfTopicsOnLastPage = lastPageTopicList.size()
 		
 		def totalNumberOfTopics = (lastPageNumber - FIRST_PAGE_NUMBER) * numberOfTopicsOnFirstPage + numberOfTopicsOnLastPage
-		println "Total number of topics to queue:  ${totalNumberOfTopics}"
+		println "Total number of topics to queue: ${totalNumberOfTopics}"
 
-		(FIRST_PAGE_NUMBER..lastPageNumber).each() {
+//		(FIRST_PAGE_NUMBER..lastPageNumber).each() {
+		(FIRST_PAGE_NUMBER..526).each() {
 			currentPageNumber ->
 			println "Processing page ${currentPageNumber} of ${lastPageNumber}"
 	
@@ -169,80 +175,114 @@ def scrapeSubforum() {
 			topicList.eachWithIndex() {
 				topic, i ->
 				def topicLink = topic.find("a.topic-link")
-				def topicLinkText = topicLink.text()
-				def topicLinkHref = topicLink.@href
-				println "Queueing topic base page url ${subforumUrlList.size()} of ${totalNumberOfTopics}: ${topicLinkHref.padRight(MAX_LABEL_WIDTH)}" 
-				subforumUrlList.add(topicLinkHref)
-				db.execute INSERT_MESSAGE_STMT, [FORUM, SUBFORUM, topicLinkHref, true]
+				def topicBaseUrl = topicLink.@href
+				println "Queueing topic base page url ${topicBaseUrls.size()} of ${totalNumberOfTopics}: ${topicBaseUrl.padRight(MAX_LABEL_WIDTH)}" 
+				topicBaseUrls.add(topicBaseUrl)
+				db.execute INSERT_TOPIC_STMT, [FORUM, SUB_FORUM, topicBaseUrl, true]
 			}
 		}
 	}
-	return subforumUrlList
+	return topicBaseUrls
 }
 
-def scrapeTopics(subforumUrlList) {
-	def topicUrlList = []
+def collectTopicUrls(topicBaseUrls) {
+	def topicUrls = []
 	Browser.drive {
 		driver = confDriver(driver)
-		println "Processing ${SUBFORUM} topics"
-		subforumUrlList.eachWithIndex() {
+		println "Processing ${SUB_FORUM} topics"
+		topicBaseUrls.eachWithIndex() {
 			url, i ->
-			println "${i}".center(MAX_LABEL_WIDTH, '-')
+			println "Processing topic ${i+1} of ${topicBaseUrls.size()}" 
 			go "${url}"
-			//def ttl = $("h1").find("span.topic-name").text()
-			//println ttl
-			def topicUrl = url
-			println "Adding topic base page url: ${topicUrl.padRight(MAX_LABEL_WIDTH)}"
-			topicUrlList.add(topicUrl)
+			println "Re-queueing topic base url: ${url.padRight(MAX_LABEL_WIDTH)}"
+			topicUrls.add(url)
 			def lastPageLink = $("dl.topic-navigation.page-navigation.before dd a.rel", rel: "last").previous()
-			//def lastPageLink = $("dl", class: contains(~/topic-navigation/)).find("a", rel: "last").previous()
 			def lastPageNumber
 			if (lastPageLink.size() == 0) {
 				println "Topic base page links to 1 page with messages"
+				db.execute UPDATE_TOPIC_PAGES_STMT, [1, url]
 			} else {
-				//println lastPageLink
-				//println lastPageLink.text()
-				//println lastPageLink.@href
 				lastPageNumber = lastPageLink.text().toInteger()
 				println "Topic base page links to ${lastPageNumber} pages with messages"
+				db.execute UPDATE_TOPIC_PAGES_STMT, [lastPageNumber, url]
 				(1..lastPageNumber-1).each() {
 					currentPageNumber ->
-					topicUrl = "${url}/${currentPageNumber}"
-					topicUrlList.add(topicUrl)
-					println "Adding topic subpage url: ${currentPageNumber}/${lastPageNumber-1}: ${topicUrl.padRight(MAX_LABEL_WIDTH)}"
-					topicUrlList.add(topicUrl)
+					def topicSubUrl = "${url}/${currentPageNumber}"
+					println "Queueing topic sub-url ${currentPageNumber} of ${lastPageNumber-1}: ${topicSubUrl.padRight(MAX_LABEL_WIDTH)}"
+					topicUrls.add(topicSubUrl)
 				}
 			}
 		}
 	}
-	return topicUrlList
+	return topicUrls
 }
 
-def scrapeMessages(topicUrlList) {
+def extractTopicBaseUrl(url) {
+	def pattern = ~/^(.*\/list_messages\/\d*)(\/?)(\d*)$/
+	def matcher = pattern.matcher(url)
+	if (DEBUG) {
+		println "[extractTopicBaseUrl] url: ${url}"
+		matcher[0].eachWithIndex() {
+			elem, i ->
+			println "[extractTopicBaseUrl] matcher ${i}: ${elem}"
+		}
+		def topicBaseUrl = matcher[0][1]
+		println "[extractTopicBaseUrl] topicBaseUrl: ${topicBaseUrl}"
+	}
+	return matcher[0][1]
+}
+
+def extractSubPage(url) {
+//	def pattern = ~/^(.*)\/list_messages\/(\d*)(\/?)(\d*)$/
+	def pattern = ~/^(.*\/list_messages\/\d*)(\/?)(\d*)$/
+	def matcher = pattern.matcher(url)
+	if (DEBUG) {
+		println "[extractSubPage] url: ${url}"
+		matcher[0].eachWithIndex() {
+			elem, i ->
+			println "[extractSubPage] matcher ${i}: ${elem}"
+		}
+		def subPage = matcher[0][3] 
+		println "[extractSubPage] subPage: ${subPage}"
+	}
+	return matcher[0][3]
+}
+
+def collectMessages(topicUrls) {
 	Browser.drive {
 		driver = confDriver(driver)
-
-		def numberOfTopics = topicUrlList.size()
-		println "Processing ${numberOfTopics} topic pages"
-	
-		topicUrlList.eachWithIndex() {
+		println "Processing ${topicUrls.size()} topic pages"
+		topicUrls.eachWithIndex() {
 			url, i ->
 			go "${url}"
-			def messageTitle = $("h1").find("span.topic-name").text().replaceAll('\\ -\\ Pagina\\ 1','');
+			def messageTitle = $("h1").find("span.topic-name").text().replaceAll('\\ -\\ Pagina\\ (\\d)*','');
 			def shortMessageTitle = messageTitle.length() > MAX_LABEL_WIDTH?"${messageTitle.replaceAll('\\r?\\n','\\\\n').substring(0,MAX_LABEL_WIDTH)}+":messageTitle
-			assert title == "${FORUM} - ${messageTitle} - ${SUBFORUM}"
-			def message = $("ol#firstmessage li.message")
-			def date = message.find("div.author-data address.posted-at").text();
-			def content = message.find("div.message-content div div.message-content-content").text();
-			def shortContent = content.length() > MAX_LABEL_WIDTH?"${content.replaceAll('\\r?\\n','\\\\n').substring(0,MAX_LABEL_WIDTH)}+":content
-			println "${i+1}/${numberOfTopics}: ${date}|${shortMessageTitle.padRight(MAX_LABEL_WIDTH+1)}|${shortContent.padRight(MAX_LABEL_WIDTH+1)}" 
-			db.execute UPDATE_MESSAGE_STMT, [date.toString(), messageTitle.toString(), content.toString(), url.toString()]
+			assert title == "${FORUM} - ${messageTitle} - ${SUB_FORUM}"
+			def topicBaseUrl = extractTopicBaseUrl(url)
+			def subPage = extractSubPage(url)
+			if (subPage == '') {
+				def firstMessage = $("ol#firstmessage li.message")
+				def date = firstMessage.find("div.author-data address.posted-at").text();
+				def content = firstMessage.find("div.message-content div div.message-content-content").text();
+				def shortContent = content.length() > MAX_LABEL_WIDTH?"${content.replaceAll('\\r?\\n','\\\\n').substring(0,MAX_LABEL_WIDTH)}+":content
+				println "Storing topic's first message ${i+1} of ${topicUrls.size()}: ${date}|${shortMessageTitle.padRight(MAX_LABEL_WIDTH+1)}|${shortContent.padRight(MAX_LABEL_WIDTH+1)}"
+				db.execute UPDATE_TOPIC_CONTENT_STMT, [date.toString(), messageTitle.toString(), content.toString(), url.toString()]
+			}
+			def replies = $("ol#messages li.message")
+			replies.eachWithIndex {
+				reply, j ->
+				def date = reply.find("div.author-data address.posted-at").text();
+				def content = reply.find("div.message-content div div.message-content-content").text();
+				def shortContent = content.length() > MAX_LABEL_WIDTH?"${content.replaceAll('\\r?\\n','\\\\n').substring(0,MAX_LABEL_WIDTH)}+":content
+				println "Storing reply message ${j+1} of ${replies.size()} on topic sub-page ${subPage}: ${date}|${shortMessageTitle.padRight(MAX_LABEL_WIDTH+1)}|${shortContent.padRight(MAX_LABEL_WIDTH+1)}"
+				db.execute INSERT_REPLY_STMT, [FORUM, SUB_FORUM, topicBaseUrl, false, (subPage==''?null:subPage.toInteger()), date.toString(), messageTitle.toString(), content.toString()]
+			}
 		}
 	}
 }
 
 db = initDb()
-scrapeForum()
-def subforumUrlList = scrapeSubforum()
-def topicUrlList = scrapeTopics(subforumUrlList)
-//scrapeMessages(topicUrlList)
+displayForumAndSubForum()
+def topicBaseUrls = collectTopicBaseUrls()
+def topicUrls = collectTopicUrls(topicBaseUrls)
+collectMessages(topicUrls)
