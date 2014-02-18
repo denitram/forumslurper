@@ -11,7 +11,7 @@ SUBFORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER = 528
 PAGE_BASE_URL = SUBFORUM_BASE_URL
 PAGE_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
 
-FIRST_PAGE_NUMBER = 528
+FIRST_PAGE_NUMBER = 526
 MAX_LABEL_WIDTH = 40
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +44,7 @@ import org.openqa.selenium.htmlunit.HtmlUnitDriver
 import org.openqa.selenium.firefox.FirefoxDriver
 import org.openqa.selenium.chrome.ChromeDriver
 
-DEBUG = true
+DEBUG = false
 DB_URL = 'jdbc:postgresql://localhost/forumslurper'
 DB_USER = 'postgres'
 DB_PASSWORD = 'password'
@@ -57,6 +57,9 @@ CREATE_TABLE_STMT = '''
 		forum character varying(40),
 		subforum character varying(40),
 		url character varying(400),
+		topic boolean,
+		pages integer,
+		page integer,
 		date character varying(20),
 		title character varying(400),
 		content character varying(8000),
@@ -64,7 +67,7 @@ CREATE_TABLE_STMT = '''
 	)
 '''
 INSERT_MESSAGE_STMT = '''
-	INSERT INTO message (forum, subforum, url) VALUES (?, ?, ?);
+	INSERT INTO message (forum, subforum, url, topic) VALUES (?, ?, ?, ?);
 '''
 UPDATE_MESSAGE_STMT = '''
 	UPDATE message SET date = ?, title = ?, content = ? WHERE url = ?;
@@ -117,16 +120,20 @@ def initDb() {
 	return db
 }
 
-def scrapeTopics() {
-	println "Scraping topic URLs"
-	def topicUrlList = []
+def scrapeForum() {
 	Browser.drive {
 		driver = confDriver(driver)
-	
 		println "Processing forum ${FORUM}"
 		go FORUM_BASE_URL
 		assert title == FORUM_EXPECTED_TITLE
+	}
+}
 	
+def scrapeSubforum() {
+	def subforumUrlList = []
+	Browser.drive {
+		driver = confDriver(driver)
+		
 		println "Processing subforum ${SUBFORUM}"
 		go SUBFORUM_BASE_URL
 		assert title == SUBFORUM_EXPECTED_TITLE
@@ -136,6 +143,17 @@ def scrapeTopics() {
 		assert lastPageNumber >= SUBFORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER
 		println "Subforum base page links to ${lastPageNumber} pages with multiple topics"
 	
+		go "${PAGE_BASE_URL}?data[page]=${FIRST_PAGE_NUMBER}"
+		def firstPageTopicList = $("table tbody td.topic-name")
+		def numberOfTopicsOnFirstPage = firstPageTopicList.size()
+
+		go "${PAGE_BASE_URL}?data[page]=${lastPageNumber}"
+		def lastPageTopicList = $("table tbody td.topic-name")
+		def numberOfTopicsOnLastPage = lastPageTopicList.size()
+		
+		def totalNumberOfTopics = (lastPageNumber - FIRST_PAGE_NUMBER) * numberOfTopicsOnFirstPage + numberOfTopicsOnLastPage
+		println "Total number of topics to queue:  ${totalNumberOfTopics}"
+
 		(FIRST_PAGE_NUMBER..lastPageNumber).each() {
 			currentPageNumber ->
 			println "Processing page ${currentPageNumber} of ${lastPageNumber}"
@@ -147,20 +165,53 @@ def scrapeTopics() {
 			def numberOfTopicsOnPage = topicList.size()
 			assert numberOfTopicsOnPage > 1
 			println "Page ${currentPageNumber} links to ${numberOfTopicsOnPage} topics"
-	
-			if (currentPageNumber == FIRST_PAGE_NUMBER) {
-				def estimatedNumberOfTopics = (lastPageNumber - FIRST_PAGE_NUMBER) * numberOfTopicsOnPage + numberOfTopicsOnPage/2
-				println "Estimated number of topics:  ${estimatedNumberOfTopics}"
-			}
-	
+
 			topicList.eachWithIndex() {
 				topic, i ->
 				def topicLink = topic.find("a.topic-link")
 				def topicLinkText = topicLink.text()
 				def topicLinkHref = topicLink.@href
-				println "${i+1}/${numberOfTopicsOnPage}: ${topicLinkText.padRight(40)}|${topicLinkHref.padRight(40)}" 
-				topicUrlList.add(topicLinkHref)
-				db.execute INSERT_MESSAGE_STMT, [FORUM, SUBFORUM, topicLinkHref]
+				println "Queueing topic base page url ${subforumUrlList.size()} of ${totalNumberOfTopics}: ${topicLinkHref.padRight(MAX_LABEL_WIDTH)}" 
+				subforumUrlList.add(topicLinkHref)
+				db.execute INSERT_MESSAGE_STMT, [FORUM, SUBFORUM, topicLinkHref, true]
+			}
+		}
+	}
+	return subforumUrlList
+}
+
+def scrapeTopics(subforumUrlList) {
+	def topicUrlList = []
+	Browser.drive {
+		driver = confDriver(driver)
+		println "Processing ${SUBFORUM} topics"
+		subforumUrlList.eachWithIndex() {
+			url, i ->
+			println "${i}".center(MAX_LABEL_WIDTH, '-')
+			go "${url}"
+			//def ttl = $("h1").find("span.topic-name").text()
+			//println ttl
+			def topicUrl = url
+			println "Adding topic base page url: ${topicUrl.padRight(MAX_LABEL_WIDTH)}"
+			topicUrlList.add(topicUrl)
+			def lastPageLink = $("dl.topic-navigation.page-navigation.before dd a.rel", rel: "last").previous()
+			//def lastPageLink = $("dl", class: contains(~/topic-navigation/)).find("a", rel: "last").previous()
+			def lastPageNumber
+			if (lastPageLink.size() == 0) {
+				println "Topic base page links to 1 page with messages"
+			} else {
+				//println lastPageLink
+				//println lastPageLink.text()
+				//println lastPageLink.@href
+				lastPageNumber = lastPageLink.text().toInteger()
+				println "Topic base page links to ${lastPageNumber} pages with messages"
+				(1..lastPageNumber-1).each() {
+					currentPageNumber ->
+					topicUrl = "${url}/${currentPageNumber}"
+					topicUrlList.add(topicUrl)
+					println "Adding topic subpage url: ${currentPageNumber}/${lastPageNumber-1}: ${topicUrl.padRight(MAX_LABEL_WIDTH)}"
+					topicUrlList.add(topicUrl)
+				}
 			}
 		}
 	}
@@ -168,7 +219,6 @@ def scrapeTopics() {
 }
 
 def scrapeMessages(topicUrlList) {
-	println "Scraping messages"
 	Browser.drive {
 		driver = confDriver(driver)
 
@@ -192,5 +242,7 @@ def scrapeMessages(topicUrlList) {
 }
 
 db = initDb()
-def topicUrlList = scrapeTopics()
-scrapeMessages(topicUrlList)
+scrapeForum()
+def subforumUrlList = scrapeSubforum()
+def topicUrlList = scrapeTopics(subforumUrlList)
+//scrapeMessages(topicUrlList)
