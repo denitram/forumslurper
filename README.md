@@ -1,6 +1,6 @@
 # Simple Groovy forum slurper
 
-Quick and dirty Groovy script to automate collection of forum posts into a database. Name suggests something generic, but for now only suitable for one specific forum. Fetches topic starters' posts only. The script uses [Geb](http://www.gebish.org) and [WebDriver](http://docs.seleniumhq.org/projects/webdriver/) to crawl forum pages.
+Groovy script to automate collection of forum posts into a database. Name suggests something generic, but for now only suitable for one specific forum. Fetches both topic starters' posts and replies. The script uses [Geb](http://www.gebish.org) and [WebDriver](http://docs.seleniumhq.org/projects/webdriver/) to crawl forum pages.
 
 ## Usage
 
