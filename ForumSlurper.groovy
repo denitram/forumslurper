@@ -35,48 +35,19 @@ FORUM_EXPECTED_TITLE = 'Viva - Categorieën'
 SUBFORUM = 'Gezondheid'
 SUBFORUM_BASE_URL = "${FORUM_BASE_URL}/${SUBFORUM}/list_topics/6"
 SUBFORUM_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
-SUBFORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER = 525
+SUBFORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER = 528
 
 PAGE_BASE_URL = SUBFORUM_BASE_URL
 PAGE_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
 
-FIRST_PAGE_NUMBER = 527
+FIRST_PAGE_NUMBER = 528
 DB_URL = 'jdbc:postgresql://localhost/forumslurper'
 DB_USER = 'postgres'
 DB_PASSWORD = 'password'
 DB_DRIVER = 'org.postgresql.Driver'
 ///////////////////////////////////////////////////////////////////////////////
 
-def escapeDQuotes(string) {
-	//return string.replaceAll('"','""')
-	return string
-}
-
-def isProxied() {
-	return (System.getProperty('http.proxyHost') != null && System.getProperty('http.proxyPort') != null)   
-}
-
-def buildProxy() {
-	proxyHost = System.getProperty('http.proxyHost')
-	proxyPort = System.getProperty('http.proxyPort')
-	Proxy proxy = new Proxy()
-	proxy.setProxyType(ProxyType.MANUAL) 
-	proxy.setHttpProxy(proxyHost+":"+proxyPort)
-	proxy.setSslProxy(proxyHost+":"+proxyPort)
-	proxy.setFtpProxy(proxyHost+":"+proxyPort)
-	return proxy
-}
-
-println "Dropping and creating db table message"
-
-db = Sql.newInstance(
-	DB_URL,
-	DB_USER,
-	DB_PASSWORD,
-	DB_DRIVER
-)
-
-db.execute '''
+String createTableStmt = '''
 	DROP TABLE IF EXISTS message;
 	CREATE TABLE message
 	(
@@ -98,6 +69,40 @@ String messageInsert = '''
 String messageUpdate = '''
 	UPDATE message SET date = ?, title = ?, content = ? WHERE url = ?;
 '''
+
+def escapeDQuotes(string) {
+	//return string.replaceAll('"','""')
+	return string
+}
+
+def isProxied() {
+	return (System.getProperty('http.proxyHost') != null && System.getProperty('http.proxyPort') != null)   
+}
+
+def buildProxy() {
+	proxyHost = System.getProperty('http.proxyHost')
+	proxyPort = System.getProperty('http.proxyPort')
+	Proxy proxy = new Proxy()
+	proxy.setProxyType(ProxyType.MANUAL) 
+	proxy.setHttpProxy(proxyHost+":"+proxyPort)
+	proxy.setSslProxy(proxyHost+":"+proxyPort)
+	proxy.setFtpProxy(proxyHost+":"+proxyPort)
+	return proxy
+}
+
+def initDb(createTableStmt) {
+	println "Dropping and creating db table message"
+	db = Sql.newInstance(
+		DB_URL,
+		DB_USER,
+		DB_PASSWORD,
+		DB_DRIVER
+	)
+	db.execute createTableStmt
+	return db
+}
+
+db = initDb(createTableStmt)
 
 println "Scraping topic URLs"
 
