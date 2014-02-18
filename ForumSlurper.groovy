@@ -6,15 +6,15 @@ FORUM_EXPECTED_TITLE = 'Viva - Categorieën'
 SUB_FORUM = 'Gezondheid'
 SUB_FORUM_BASE_URL = "${FORUM_BASE_URL}/${SUB_FORUM}/list_topics/6"
 SUB_FORUM_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
-SUB_FORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER = 528
+SUB_FORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER = 529
 
 PAGE_BASE_URL = SUB_FORUM_BASE_URL
 PAGE_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
 
-FIRST_PAGE_NUMBER = 526
+FIRST_PAGE_NUMBER = 525
 // Use -1 to run until actual last page
-//LAST_PAGE_NUMBER = -1
-LAST_PAGE_NUMBER = 527
+LAST_PAGE_NUMBER = -1
+//LAST_PAGE_NUMBER = 527
 MAX_LABEL_WIDTH = 40
 
 DEBUG = false
@@ -185,7 +185,7 @@ def collectTopicBaseUrls() {
 	
 			def topicList = $("table tbody td.topic-name")
 			def numberOfTopicsOnPage = topicList.size()
-			assert numberOfTopicsOnPage > 1
+			assert numberOfTopicsOnPage >= 1
 			println "Page ${currentPageNumber} links to ${numberOfTopicsOnPage} topics"
 
 			topicList.eachWithIndex() {
@@ -233,41 +233,11 @@ def collectTopicUrls(topicBaseUrls) {
 	return topicUrls
 }
 
-def extractTopicBaseUrl(url) {
-	def pattern = ~/^(.*\/list_messages\/\d*)(\/?)(\d*)$/
-	def matcher = pattern.matcher(url)
-	if (DEBUG) {
-		println "[extractTopicBaseUrl] url: ${url}"
-		matcher[0].eachWithIndex() {
-			elem, i ->
-			println "[extractTopicBaseUrl] matcher ${i}: ${elem}"
-		}
-		def topicBaseUrl = matcher[0][1]
-		println "[extractTopicBaseUrl] topicBaseUrl: ${topicBaseUrl}"
-	}
-	return matcher[0][1]
-}
-
-def extractSubPage(url) {
-	def pattern = ~/^(.*\/list_messages\/\d*)(\/?)(\d*)$/
-	def matcher = pattern.matcher(url)
-	if (DEBUG) {
-		println "[extractSubPage] url: ${url}"
-		matcher[0].eachWithIndex() {
-			elem, i ->
-			println "[extractSubPage] matcher ${i}: ${elem}"
-		}
-		def subPage = matcher[0][3] 
-		println "[extractSubPage] subPage: ${subPage}"
-	}
-	return matcher[0][3]
-}
-
 def collectMessages(topicUrls) {
+	def messageCount = 0
 	Browser.drive {
 		driver = confDriver(driver)
 		println "Processing ${topicUrls.size()} topic pages"
-		def messageCount = 0
 		def replyCount = 0
 		topicUrls.eachWithIndex() {
 			url, i ->
@@ -300,10 +270,74 @@ def collectMessages(topicUrls) {
 			}
 		}
 	}
+	return messageCount
 }
 
+def extractTopicBaseUrl(url) {
+	def pattern = ~/^(.*\/list_messages\/\d*)(\/?)(\d*)$/
+	def matcher = pattern.matcher(url)
+	if (DEBUG) {
+		println "[extractTopicBaseUrl] url: ${url}"
+		matcher[0].eachWithIndex() {
+			elem, i ->
+			println "[extractTopicBaseUrl] matcher ${i}: ${elem}"
+		}
+		def topicBaseUrl = matcher[0][1]
+		println "[extractTopicBaseUrl] topicBaseUrl: ${topicBaseUrl}"
+	}
+	return matcher[0][1]
+}
+
+def extractSubPage(url) {
+	def pattern = ~/^(.*\/list_messages\/\d*)(\/?)(\d*)$/
+	def matcher = pattern.matcher(url)
+	if (DEBUG) {
+		println "[extractSubPage] url: ${url}"
+		matcher[0].eachWithIndex() {
+			elem, i ->
+			println "[extractSubPage] matcher ${i}: ${elem}"
+		}
+		def subPage = matcher[0][3]
+		println "[extractSubPage] subPage: ${subPage}"
+	}
+	return matcher[0][3]
+}
+
+def displayElapsedTime(message, start, stop) {
+	long l1 = start.getTime();
+	long l2 = stop.getTime();
+	long diff = l2 - l1;
+	long secondInMillis = 1000;
+	long minuteInMillis = secondInMillis * 60;
+	long hourInMillis = minuteInMillis * 60;
+	long dayInMillis = hourInMillis * 24;
+	long elapsedDays = diff / dayInMillis;
+	diff = diff % dayInMillis;
+	long elapsedHours = diff / hourInMillis;
+	diff = diff % hourInMillis;
+	long elapsedMinutes = diff / minuteInMillis;
+	diff = diff % minuteInMillis;
+	long elapsedSeconds = diff / secondInMillis;
+	print "${message}: ${(elapsedDays>0?elapsedDays+' days and ':'')}"
+	printf("%02d",elapsedHours)
+	print ':'
+	printf("%02d",elapsedMinutes)
+	print ':'
+	printf("%02d",elapsedSeconds)
+	println ''
+}
+
+def start = new Date()
 db = initDb()
 displayForumAndSubForum()
+def actualStart = new Date()
 def topicBaseUrls = collectTopicBaseUrls()
+def finishedCollectingTopicBaseUrls = new Date()
+displayElapsedTime("Time to collect topic base page urls", actualStart, finishedCollectingTopicBaseUrls)
 def topicUrls = collectTopicUrls(topicBaseUrls)
-collectMessages(topicUrls)
+def finishedCollectingTopicUrls = new Date()
+displayElapsedTime("Time to collect all topic page urls", finishedCollectingTopicBaseUrls, finishedCollectingTopicUrls)
+def numberOfMessagesCollected = collectMessages(topicUrls)
+def stop = new Date()
+displayElapsedTime("Time to collect messages", finishedCollectingTopicUrls, stop)
+displayElapsedTime("${numberOfMessagesCollected} Messages stored; total running time was", start, stop)
