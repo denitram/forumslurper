@@ -11,18 +11,18 @@ SUB_FORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER = 529
 PAGE_BASE_URL = SUB_FORUM_BASE_URL
 PAGE_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
 
-FIRST_PAGE_NUMBER = 529
+FIRST_PAGE_NUMBER = 527
 // Use -1 to run until actual last page
 LAST_PAGE_NUMBER = -1
 //LAST_PAGE_NUMBER = 527
 
 // Database fields limits
-//MAX_TOPIC_BASE_URL_LENGTH = 400
-MAX_TOPIC_BASE_URL_LENGTH = 4
-//MAX_TITLE_LENGTH = 400
-MAX_TITLE_LENGTH = 4
-//MAX_CONTENT_LENGTH = 8000
-MAX_CONTENT_LENGTH = 8
+MAX_TOPIC_BASE_URL_LENGTH = 400
+MAX_TITLE_LENGTH = 400
+MAX_CONTENT_LENGTH = 8000
+
+// Drop and create table? (You will lose all data collected in previous runs!)
+RE_CREATE_TABLE = false
 
 // Run time output options
 MAX_DISPLAY_WIDTH = 40
@@ -62,8 +62,11 @@ DB_URL = 'jdbc:postgresql://localhost/forumslurper'
 DB_USER = 'postgres'
 DB_PASSWORD = 'password'
 DB_DRIVER = 'org.postgresql.Driver'
-CREATE_TABLE_STMT = """\
+
+DROP_TABLE_STMT = '''
 	DROP TABLE IF EXISTS message;
+'''
+CREATE_TABLE_STMT = """\
 	CREATE TABLE message
 	(
 		id SERIAL,
@@ -79,7 +82,6 @@ CREATE_TABLE_STMT = """\
 		CONSTRAINT message_pkey PRIMARY KEY (id)
 	)
 """.toString()
-
 INSERT_TOPIC_STMT = '''
 	INSERT INTO message (forum, sub_forum, topic_base_url, is_topic) VALUES (?, ?, ?, ?);
 '''
@@ -129,15 +131,18 @@ def confDriver(driver) {
 }
 
 def initDb() {
-	println "Dropping and creating db table message"
 	db = Sql.newInstance(
 		DB_URL,
 		DB_USER,
 		DB_PASSWORD,
 		DB_DRIVER
 	)
-	//db.execute CREATE_TABLE_STMT, [MAX_TOPIC_BASE_URL_LENGTH, MAX_TITLE_LENGTH, MAX_CONTENT_LENGTH]
-	db.execute CREATE_TABLE_STMT.toString()
+	if (RE_CREATE_TABLE) {
+		println "Dropping existing db table 'message'"
+		db.execute DROP_TABLE_STMT
+		println "Creating db table 'message'"
+		db.execute CREATE_TABLE_STMT
+	}
 	return db
 }
 
