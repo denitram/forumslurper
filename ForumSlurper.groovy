@@ -11,12 +11,21 @@ SUB_FORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER = 529
 PAGE_BASE_URL = SUB_FORUM_BASE_URL
 PAGE_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
 
-FIRST_PAGE_NUMBER = 525
+FIRST_PAGE_NUMBER = 529
 // Use -1 to run until actual last page
 LAST_PAGE_NUMBER = -1
 //LAST_PAGE_NUMBER = 527
-MAX_LABEL_WIDTH = 40
 
+// Database fields limits
+//MAX_TOPIC_BASE_URL_LENGTH = 400
+MAX_TOPIC_BASE_URL_LENGTH = 4
+//MAX_TITLE_LENGTH = 400
+MAX_TITLE_LENGTH = 4
+//MAX_CONTENT_LENGTH = 8000
+MAX_CONTENT_LENGTH = 8
+
+// Run time output options
+MAX_DISPLAY_WIDTH = 40
 DEBUG = false
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -53,23 +62,24 @@ DB_URL = 'jdbc:postgresql://localhost/forumslurper'
 DB_USER = 'postgres'
 DB_PASSWORD = 'password'
 DB_DRIVER = 'org.postgresql.Driver'
-CREATE_TABLE_STMT = '''
+CREATE_TABLE_STMT = """\
 	DROP TABLE IF EXISTS message;
 	CREATE TABLE message
 	(
 		id SERIAL,
 		forum character varying(40),
 		sub_forum character varying(40),
-		topic_base_url character varying(400),
+		topic_base_url character varying(${MAX_TOPIC_BASE_URL_LENGTH}),
 		is_topic boolean,
 		nr_of_pages integer,
 		sub_page integer,
 		date character varying(20),
-		title character varying(400),
-		content character varying(8000),
+		title character varying(${MAX_TITLE_LENGTH}),
+		content character varying(${MAX_CONTENT_LENGTH}),
 		CONSTRAINT message_pkey PRIMARY KEY (id)
 	)
-'''
+""".toString()
+
 INSERT_TOPIC_STMT = '''
 	INSERT INTO message (forum, sub_forum, topic_base_url, is_topic) VALUES (?, ?, ?, ?);
 '''
@@ -112,8 +122,8 @@ def confDriver(driver) {
 		}
 	}
 	if (DEBUG) {
-		println "Driver capabilities:"
-		println driver.capabilities.asMap().each{ println "${it.key}=${it.value}" }
+		println "[DEBUG @ confDriver] Driver capabilities:"
+		driver.capabilities.asMap().each{ println "[DEBUG @ confDriver] ${it.key}=${it.value}" }
 	}
 	return driver
 }
@@ -126,7 +136,8 @@ def initDb() {
 		DB_PASSWORD,
 		DB_DRIVER
 	)
-	db.execute CREATE_TABLE_STMT
+	//db.execute CREATE_TABLE_STMT, [MAX_TOPIC_BASE_URL_LENGTH, MAX_TITLE_LENGTH, MAX_CONTENT_LENGTH]
+	db.execute CREATE_TABLE_STMT.toString()
 	return db
 }
 
@@ -191,10 +202,16 @@ def collectTopicBaseUrls() {
 			topicList.eachWithIndex() {
 				topic, j ->
 				def topicLink = topic.find("a.topic-link")
-				def topicBaseUrl = topicLink.@href
-				println "Queueing topic base page url #${topicBaseUrls.size()+1} of ${totalNumberOfTopics}: ${topicBaseUrl.padRight(MAX_LABEL_WIDTH)}" 
+				def topicBaseUrl = topicLink.@href.toString()
+				println "Queueing topic base page url #${topicBaseUrls.size()+1} of ${totalNumberOfTopics}: ${topicBaseUrl.padRight(MAX_DISPLAY_WIDTH)}" 
 				topicBaseUrls.add(topicBaseUrl)
-				db.execute INSERT_TOPIC_STMT, [FORUM, SUB_FORUM, topicBaseUrl, true]
+				try {
+					db.execute INSERT_TOPIC_STMT, [FORUM, SUB_FORUM, topicBaseUrl, true]
+				} catch(e) {
+					assert e in org.postgresql.util.PSQLException
+					topicBaseUrl = truncIfNecessary(topicBaseUrl, MAX_TOPIC_BASE_URL_LENGTH)
+					db.execute INSERT_TOPIC_STMT, [FORUM, SUB_FORUM, topicBaseUrl, true]
+				}
 			}
 		}
 	}
@@ -210,7 +227,7 @@ def collectTopicUrls(topicBaseUrls) {
 			url, i ->
 			println "Processing topic #${i+1} of ${topicBaseUrls.size()}" 
 			go "${url}"
-			println "Re-queueing topic base url: ${url.padRight(MAX_LABEL_WIDTH)}"
+			println "Re-queueing topic base url: ${url.padRight(MAX_DISPLAY_WIDTH)}"
 			topicUrls.add(url)
 			def lastPageLink = $("dl.topic-navigation.page-navigation.before dd a.rel", rel: "last").previous()
 			def lastPageNumber
@@ -224,7 +241,7 @@ def collectTopicUrls(topicBaseUrls) {
 				(1..lastPageNumber-1).each() {
 					currentPageNumber ->
 					def topicSubUrl = "${url}/${currentPageNumber}"
-					println "Queueing topic sub-url #${currentPageNumber} of ${lastPageNumber-1}: ${topicSubUrl.padRight(MAX_LABEL_WIDTH)}"
+					println "Queueing topic sub-url #${currentPageNumber} of ${lastPageNumber-1}: ${topicSubUrl.padRight(MAX_DISPLAY_WIDTH)}"
 					topicUrls.add(topicSubUrl)
 				}
 			}
@@ -235,6 +252,7 @@ def collectTopicUrls(topicBaseUrls) {
 
 def collectMessages(topicUrls) {
 	def messageCount = 0
+	def topicCount = 0
 	Browser.drive {
 		driver = confDriver(driver)
 		println "Processing ${topicUrls.size()} topic pages"
@@ -242,31 +260,53 @@ def collectMessages(topicUrls) {
 		topicUrls.eachWithIndex() {
 			url, i ->
 			go "${url}"
-			def messageTitle = $("h1").find("span.topic-name").text().replaceAll('\\ -\\ Pagina\\ (\\d)*','');
-			def shortMessageTitle = messageTitle.length() > MAX_LABEL_WIDTH?"${messageTitle.replaceAll('\\r?\\n','\\\\n').substring(0,MAX_LABEL_WIDTH)}+":messageTitle
+			def messageTitle = $("h1").find("span.topic-name").text().toString().replaceAll('\\ -\\ Pagina\\ (\\d)*','');
 			assert title == "${FORUM} - ${messageTitle} - ${SUB_FORUM}"
 			def topicBaseUrl = extractTopicBaseUrl(url)
 			def subPage = extractSubPage(url)
 			if (subPage == '') {
 				def firstMessage = $("ol#firstmessage li.message")
-				def date = firstMessage.find("div.author-data address.posted-at").text();
-				def content = firstMessage.find("div.message-content div div.message-content-content").text();
-				def shortContent = content.length() > MAX_LABEL_WIDTH?"${content.replaceAll('\\r?\\n','\\\\n').substring(0,MAX_LABEL_WIDTH)}+":content
-				messageCount++
-				replyCount = 0
-				println "Storing first message (topic #${i+1} of ${topicUrls.size()}; message #${messageCount}): |${date}|${shortMessageTitle.padRight(MAX_LABEL_WIDTH+1)}|${shortContent.padRight(MAX_LABEL_WIDTH+1)}|"
-				db.execute UPDATE_TOPIC_CONTENT_STMT, [date.toString(), messageTitle.toString(), content.toString(), url.toString()]
+				def date = firstMessage.find("div.author-data address.posted-at").text().toString();
+				def content = firstMessage.find("div.message-content div div.message-content-content").text().toString();
+				try {
+					db.execute UPDATE_TOPIC_CONTENT_STMT, [date, messageTitle, content, url]
+					messageCount++
+					topicCount++
+					println "Stored first message in topic #${topicCount} on base page (page #${i+1} of ${topicUrls.size()}; message #${messageCount}): |${date}|${inLineAndTruncIfNecessary(messageTitle, MAX_DISPLAY_WIDTH).padRight(MAX_DISPLAY_WIDTH+1)}|${inLineAndTruncIfNecessary(content, MAX_DISPLAY_WIDTH).padRight(MAX_DISPLAY_WIDTH+1)}|"
+				} catch(e) {
+					assert e in org.postgresql.util.PSQLException
+					messageTitle = truncIfNecessary(messageTitle, MAX_TITLE_LENGTH)
+					content = truncIfNecessary(content, MAX_CONTENT_LENGTH)
+					db.execute UPDATE_TOPIC_CONTENT_STMT, [date, messageTitle, content, url]
+					messageCount++
+					topicCount++
+					println "Retried with truncated field(s)"
+					println "Stored first message in topic #${topicCount} on base page (page #${i+1} of ${topicUrls.size()}; message #${messageCount}): |${date}|${inLineAndTruncIfNecessary(messageTitle, MAX_DISPLAY_WIDTH).padRight(MAX_DISPLAY_WIDTH+1)}|${inLineAndTruncIfNecessary(content, MAX_DISPLAY_WIDTH).padRight(MAX_DISPLAY_WIDTH+1)}|"
+				} finally {
+					replyCount = 0
+				}
 			}
 			def replies = $("ol#messages li.message")
 			replies.eachWithIndex {
 				reply, j ->
-				def date = reply.find("div.author-data address.posted-at").text();
-				def content = reply.find("div.message-content div div.message-content-content").text();
-				def shortContent = content.length() > MAX_LABEL_WIDTH?"${content.replaceAll('\\r?\\n','\\\\n').substring(0,MAX_LABEL_WIDTH)}+":content
-				messageCount++
-				replyCount++
-				println "Storing reply message #${replyCount} on topic ${(subPage==''?'base page':'sub-page #'+subPage)} (topic #${i+1} of ${topicUrls.size()}; message #${messageCount}): |${date}|${shortMessageTitle.padRight(MAX_LABEL_WIDTH+1)}|${shortContent.padRight(MAX_LABEL_WIDTH+1)}|"
-				db.execute INSERT_REPLY_STMT, [FORUM, SUB_FORUM, topicBaseUrl, false, (subPage==''?null:subPage.toInteger()), date.toString(), messageTitle.toString(), content.toString()]
+				def date = reply.find("div.author-data address.posted-at").text().toString();
+				def content = reply.find("div.message-content div div.message-content-content").text().toString();
+				try {
+					db.execute INSERT_REPLY_STMT, [FORUM, SUB_FORUM, topicBaseUrl, false, (subPage==''?null:subPage.toInteger()), date, messageTitle, content]
+					messageCount++
+					replyCount++
+					println "Stored reply message #${replyCount} in topic #${topicCount} on ${(subPage==''?'base page':'sub-page #'+subPage)} (page #${i+1} of ${topicUrls.size()}; message #${messageCount}): |${date}|${inLineAndTruncIfNecessary(messageTitle, MAX_DISPLAY_WIDTH).padRight(MAX_DISPLAY_WIDTH+1)}|${inLineAndTruncIfNecessary(content, MAX_DISPLAY_WIDTH).padRight(MAX_DISPLAY_WIDTH+1)}|"
+				} catch(e) {
+					assert e in org.postgresql.util.PSQLException
+					messageTitle = truncIfNecessary(messageTitle, MAX_TITLE_LENGTH)
+					content = truncIfNecessary(content, MAX_CONTENT_LENGTH)
+					db.execute INSERT_REPLY_STMT, [FORUM, SUB_FORUM, topicBaseUrl, false, (subPage==''?null:subPage.toInteger()), date, messageTitle, content]
+					messageCount++
+					replyCount++
+					println "Retried with truncated field(s)"
+					println "Stored reply message #${replyCount} in topic #${topicCount} on ${(subPage==''?'base page':'sub-page #'+subPage)} (page #${i+1} of ${topicUrls.size()}; message #${messageCount}): |${date}|${inLineAndTruncIfNecessary(messageTitle, MAX_DISPLAY_WIDTH).padRight(MAX_DISPLAY_WIDTH+1)}|${inLineAndTruncIfNecessary(content, MAX_DISPLAY_WIDTH).padRight(MAX_DISPLAY_WIDTH+1)}|"
+				} finally {
+				}
 			}
 		}
 	}
@@ -277,13 +317,13 @@ def extractTopicBaseUrl(url) {
 	def pattern = ~/^(.*\/list_messages\/\d*)(\/?)(\d*)$/
 	def matcher = pattern.matcher(url)
 	if (DEBUG) {
-		println "[extractTopicBaseUrl] url: ${url}"
+		println "[DEBUG @ extractTopicBaseUrl] url: ${url}"
 		matcher[0].eachWithIndex() {
 			elem, i ->
-			println "[extractTopicBaseUrl] matcher ${i}: ${elem}"
+			println "[DEBUG @ extractTopicBaseUrl] matcher ${i}: ${elem}"
 		}
 		def topicBaseUrl = matcher[0][1]
-		println "[extractTopicBaseUrl] topicBaseUrl: ${topicBaseUrl}"
+		println "[DEBUG @ extractTopicBaseUrl] topicBaseUrl: ${topicBaseUrl}"
 	}
 	return matcher[0][1]
 }
@@ -292,15 +332,42 @@ def extractSubPage(url) {
 	def pattern = ~/^(.*\/list_messages\/\d*)(\/?)(\d*)$/
 	def matcher = pattern.matcher(url)
 	if (DEBUG) {
-		println "[extractSubPage] url: ${url}"
+		println "[DEBUG @ extractSubPage] url: ${url}"
 		matcher[0].eachWithIndex() {
 			elem, i ->
-			println "[extractSubPage] matcher ${i}: ${elem}"
+			println "[DEBUG @ extractSubPage] matcher ${i}: ${elem}"
 		}
 		def subPage = matcher[0][3]
-		println "[extractSubPage] subPage: ${subPage}"
+		println "[DEBUG @ extractSubPage] subPage: ${subPage}"
 	}
 	return matcher[0][3]
+}
+
+def truncIfNecessary(string, maxLength) {
+	if (string != null && string.length() > maxLength) {
+		string = string.substring(0, maxLength)
+		if (DEBUG) {
+			println  "[DEBUG @ truncIfNecessary] Truncated field to ${maxLength} chars: (${string})"
+		}
+	}
+	return string
+}
+
+def inLineAndTruncIfNecessary(string, maxLength) {
+	if (string != null) {
+		if (string.length() <= maxLength) {
+			string = string.replaceAll('\\r?\\n','\\\\n')
+			if (DEBUG) {
+				println  "[DEBUG @ inLineAndTruncIfNecessary] Inlined field: (${string})"
+			}		
+		} else {
+			string = string.replaceAll('\\r?\\n','\\\\n').substring(0, maxLength) 
+			if (DEBUG) {
+				println  "[DEBUG @ inLineAndTruncIfNecessary] Inlined and truncated field to ${maxLength} chars: (${string})"
+			}
+		}		
+	}
+	return string
 }
 
 def displayElapsedTime(message, start, stop) {
