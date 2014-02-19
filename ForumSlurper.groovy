@@ -6,15 +6,14 @@ FORUM_EXPECTED_TITLE = 'Viva - Categorieën'
 SUB_FORUM = 'Gezondheid'
 SUB_FORUM_BASE_URL = "${FORUM_BASE_URL}/${SUB_FORUM}/list_topics/6"
 SUB_FORUM_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
-SUB_FORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER = 529
 
 PAGE_BASE_URL = SUB_FORUM_BASE_URL
-PAGE_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
+PAGE_EXPECTED_TITLE = "${SUB_FORUM_EXPECTED_TITLE}"
 
-FIRST_PAGE_NUMBER = 527
+FIRST_PAGE_NUMBER = 300
 // Use -1 to run until actual last page
-LAST_PAGE_NUMBER = -1
-//LAST_PAGE_NUMBER = 527
+//LAST_PAGE_NUMBER = -1
+LAST_PAGE_NUMBER = 399
 
 // Database fields limits
 MAX_TOPIC_BASE_URL_LENGTH = 400
@@ -165,7 +164,6 @@ def collectTopicBaseUrls() {
 		
 		def lastPageLink = $("dl.discussion-navigation.page-navigation.before dd a", rel: "next").previous()
 		def lastPageNumber = lastPageLink.text().toInteger()
-		assert lastPageNumber >= SUB_FORUM_EXPECTED_MINIMAL_LAST_PAGE_NUMBER
 		println "Sub-forum base page links to ${lastPageNumber} pages with multiple topics"
 
 		if (LAST_PAGE_NUMBER != -1) {
@@ -266,7 +264,6 @@ def collectMessages(topicUrls) {
 			url, i ->
 			go "${url}"
 			def messageTitle = $("h1").find("span.topic-name").text().toString().replaceAll('\\ -\\ Pagina\\ (\\d)*','');
-			assert title == "${FORUM} - ${messageTitle} - ${SUB_FORUM}"
 			def topicBaseUrl = extractTopicBaseUrl(url)
 			def subPage = extractSubPage(url)
 			if (subPage == '') {
