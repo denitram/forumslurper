@@ -3,17 +3,22 @@ FORUM = 'Viva'
 FORUM_BASE_URL = 'http://forum.viva.nl/forum'
 FORUM_EXPECTED_TITLE = 'Viva - Categorieën'
 
-SUB_FORUM = 'Gezondheid'
-SUB_FORUM_BASE_URL = "${FORUM_BASE_URL}/${SUB_FORUM}/list_topics/6"
-SUB_FORUM_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
+//SUB_FORUM = 'Gezondheid'
+SUB_FORUM = 'Psyche'
+//SUB_FORUM = 'Kinderen'
+//SUB_FORUM_BASE_URL = "${FORUM_BASE_URL}/${SUB_FORUM}/list_topics/6"
+SUB_FORUM_BASE_URL = "${FORUM_BASE_URL}/${SUB_FORUM}/list_topics/16"
+//SUB_FORUM_BASE_URL = "${FORUM_BASE_URL}/${SUB_FORUM}/list_topics/12"
+//SUB_FORUM_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Gezondheid'
+SUB_FORUM_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Psyche'
+//SUB_FORUM_EXPECTED_TITLE = 'Viva - Onderwerpen van forum Kinderen'
 
 PAGE_BASE_URL = SUB_FORUM_BASE_URL
 PAGE_EXPECTED_TITLE = "${SUB_FORUM_EXPECTED_TITLE}"
 
-FIRST_PAGE_NUMBER = 300
+FIRST_PAGE_NUMBER = 1
 // Use -1 to run until actual last page
-//LAST_PAGE_NUMBER = -1
-LAST_PAGE_NUMBER = 399
+LAST_PAGE_NUMBER = -1
 
 // Database fields limits
 MAX_TOPIC_BASE_URL_LENGTH = 400
