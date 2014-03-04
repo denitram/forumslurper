@@ -64,6 +64,8 @@ Equals number of pages in multi-page topics excluding base pages.
 
 ## Scratchpad
 
+<pre>
+
 ### Create tmp table with multi page topics
 
 forumslurper=# create table multi_page_topic as (select * from message where is_topic = true and nr_of_pages > 1);                                                                    
@@ -216,3 +218,4 @@ forumslurper=# select count(*) from (select mptr.id r_id,mpt.id t_id,mpt.topic_b
 
 Time: 1433.635 ms
 
+</pre>
